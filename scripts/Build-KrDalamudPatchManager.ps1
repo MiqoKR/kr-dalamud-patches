@@ -2,7 +2,7 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
-    [string]$Version = '0.1.1',
+    [string]$Version = '0.1.2',
     [switch]$NoRestore
 )
 
@@ -16,9 +16,9 @@ $arguments = @(
     'publish', $project,
     '-c', $Configuration,
     '-r', 'win-x64',
-    '--self-contained', 'true',
+    '--self-contained', 'false',
+    '-p:SelfContained=false',
     '-p:PublishSingleFile=true',
-    '-p:IncludeNativeLibrariesForSelfExtract=true',
     '-p:DebugType=None',
     '-p:DebugSymbols=false',
     "-p:Version=$Version",
