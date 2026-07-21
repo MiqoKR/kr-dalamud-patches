@@ -413,7 +413,21 @@ internal static class PatchManagerUpdater
         var updateScript = Path.Combine(updateRoot, "apply-update.ps1");
         var script = $"$ErrorActionPreference = 'Stop'\r\n" +
             $"Wait-Process -Id {Environment.ProcessId} -ErrorAction SilentlyContinue\r\n" +
-            $"Move-Item -LiteralPath '{EscapePowerShell(replacement)}' -Destination '{EscapePowerShell(currentExecutable)}' -Force\r\n" +
+            "Start-Sleep -Milliseconds 500\r\n" +
+            "$copied = $false\r\n" +
+            "for ($attempt = 0; $attempt -lt 30; $attempt++) {\r\n" +
+            "    try {\r\n" +
+            $"        Copy-Item -LiteralPath '{EscapePowerShell(replacement)}' -Destination '{EscapePowerShell(currentExecutable)}' -Force -ErrorAction Stop\r\n" +
+            "        $copied = $true\r\n" +
+            "        break\r\n" +
+            "    } catch {\r\n" +
+            "        Start-Sleep -Milliseconds 250\r\n" +
+            "    }\r\n" +
+            "}\r\n" +
+            "if (-not $copied) {\r\n" +
+            $"    Start-Process -FilePath '{EscapePowerShell(replacement)}'\r\n" +
+            "    exit 1\r\n" +
+            "}\r\n" +
             $"Start-Process -FilePath '{EscapePowerShell(currentExecutable)}'\r\n";
         File.WriteAllText(updateScript, script);
         Process.Start(new ProcessStartInfo
