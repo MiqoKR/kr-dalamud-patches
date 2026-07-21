@@ -1,0 +1,73 @@
+name: Release KR Dalamud Patch Manager
+
+on:
+  push:
+    tags:
+      - 'patch-manager-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '릴리스 버전 (예: 0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Determine release version
+        id: release
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $version = '${{ inputs.version }}'
+          } else {
+            $version = '${{ github.ref_name }}' -replace '^patch-manager-v', ''
+          }
+          if ($version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
+            throw '버전은 0.1.0 또는 0.1.0-rc.1 형식이어야 합니다.'
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=patch-manager-v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Build Patch Manager
+        shell: pwsh
+        run: .\\scripts\\Build-KrDalamudPatchManager.ps1 -Version '${{ steps.release.outputs.version }}'
+
+      - name: Prepare release assets
+        id: assets
+        shell: pwsh
+        run: |
+          $version = '${{ steps.release.outputs.version }}'
+          $name = "KR.Dalamud.PatchManager-$version-win-x64"
+          $stage = Join-Path $env:RUNNER_TEMP $name
+          New-Item -ItemType Directory -Path $stage | Out-Null
+          Copy-Item '.\\dist\\KR.Dalamud.PatchManager\\KR.Dalamud.PatchManager.exe' $stage
+          Copy-Item '.\\README.md' (Join-Path $stage 'README-KR.md')
+          $zip = Join-Path $env:RUNNER_TEMP "$name.zip"
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
+          $hashFile = "$zip.sha256"
+          "$hash  $name.zip" | Set-Content -NoNewline -Encoding ascii $hashFile
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+          "sha256=$hashFile" >> $env:GITHUB_OUTPUT
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: KR Dalamud Patch Manager v${{ steps.release.outputs.version }}
+          generate_release_notes: true
+          files: |
+            ${{ steps.assets.outputs.zip }}
+            ${{ steps.assets.outputs.sha256 }}
