@@ -48,7 +48,7 @@ jobs:
         shell: pwsh
         run: |
           $version = '${{ steps.release.outputs.version }}'
-          $name = "CustomizePlus.KR.Actor.Patcher-$version-win-x64"
+          $name = "CustomizePlus.KR.Actor.Patcher-$version"
           $stage = Join-Path $env:RUNNER_TEMP $name
           New-Item -ItemType Directory -Path $stage | Out-Null
           Copy-Item '.\\dist\\CustomizePlusKrActorPatcher\\CustomizePlus.KR.Actor.Patcher.exe' $stage

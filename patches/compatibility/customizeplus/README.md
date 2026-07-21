@@ -12,7 +12,7 @@
 
 ## 사용
 
-GitHub Release에서 `CustomizePlus.KR.Actor.Patcher-<version>-win-x64.zip`을 내려받아 압축을 풀고 실행합니다.
+GitHub Release에서 `CustomizePlus.KR.Actor.Patcher-<version>.zip`을 내려받아 압축을 풀고 실행합니다.
 
 1. `적용`을 선택합니다.
 2. 대상 버전과 원본 파일 해시가 확인되면 자동 백업 후 패치합니다.
@@ -35,4 +35,3 @@ GitHub Release에서 `CustomizePlus.KR.Actor.Patcher-<version>-win-x64.zip`을 �
 ```
 
 `--test-patch`, `--test-verify`, `--test-discover`는 배포 전 검증용 CLI입니다. 일반 사용자는 GUI만 사용하면 됩니다.
-

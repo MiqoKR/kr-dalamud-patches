@@ -48,7 +48,7 @@ jobs:
         shell: pwsh
         run: |
           $version = '${{ steps.release.outputs.version }}'
-          $name = "KR.Dalamud.PatchManager-$version-win-x64"
+          $name = "KR.Dalamud.PatchManager-$version"
           $stage = Join-Path $env:RUNNER_TEMP $name
           New-Item -ItemType Directory -Path $stage | Out-Null
           Copy-Item '.\\dist\\KR.Dalamud.PatchManager\\KR.Dalamud.PatchManager.exe' $stage

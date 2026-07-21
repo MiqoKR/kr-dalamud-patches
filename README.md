@@ -24,7 +24,7 @@ Patch Manager의 `검증 성공 조건` 열은 단순 파일 존재 여부가 �
 
 1. 게임, XIVLauncher, Dalamud를 모두 종료합니다.
 2. Windows에 [.NET 10 Desktop Runtime x64](https://dotnet.microsoft.com/download/dotnet/10.0)가 설치되어 있는지 확인합니다. 배포 파일에는 런타임을 포함하지 않습니다.
-3. [Releases](https://github.com/MiqoKR/kr-dalamud-patches/releases)에서 `KR.Dalamud.PatchManager-<version>-win-x64.zip`을 받아 압축을 풉니다.
+3. [Releases](https://github.com/MiqoKR/kr-dalamud-patches/releases)에서 `KR.Dalamud.PatchManager-<version>.zip`을 받아 압축을 풉니다.
 4. `KR.Dalamud.PatchManager.exe`를 실행하고 적용할 모듈을 선택합니다.
 5. `선택 항목 적용` 또는 `선택 항목 복원`을 누릅니다.
 

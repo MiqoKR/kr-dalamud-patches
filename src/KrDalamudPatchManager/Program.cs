@@ -302,7 +302,8 @@ internal static class PatchManagerUpdater
 {
     private const string Repository = "MiqoKR/kr-dalamud-patches";
     private const string AssetPrefix = "KR.Dalamud.PatchManager-";
-    private const string AssetSuffix = "-win-x64.zip";
+    private const string AssetSuffix = ".zip";
+    private const string LegacyAssetSuffix = "-win-x64.zip";
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromMinutes(2) };
 
     public static Version CurrentVersion
@@ -327,14 +328,17 @@ internal static class PatchManagerUpdater
         }
 
         var expectedZip = $"{AssetPrefix}{version}{AssetSuffix}";
+        var legacyZip = $"{AssetPrefix}{version}{LegacyAssetSuffix}";
         var assets = selected.Release.GetProperty("assets").EnumerateArray().Select(asset => new
         {
             Name = asset.GetProperty("name").GetString(),
             Url = asset.GetProperty("browser_download_url").GetString(),
         }).ToArray();
-        var zipUrl = assets.FirstOrDefault(asset => asset.Name == expectedZip)?.Url
-            ?? throw new InvalidOperationException($"릴리스에서 {expectedZip}을(를) 찾지 못했습니다.");
-        var hashUrl = assets.FirstOrDefault(asset => asset.Name == expectedZip + ".sha256")?.Url
+        var zip = assets.FirstOrDefault(asset => asset.Name == expectedZip) ??
+            assets.FirstOrDefault(asset => asset.Name == legacyZip) ??
+            throw new InvalidOperationException($"릴리스에서 {expectedZip}을(를) 찾지 못했습니다.");
+        var zipUrl = zip.Url ?? throw new InvalidOperationException("릴리스 ZIP 다운로드 주소가 없습니다.");
+        var hashUrl = assets.FirstOrDefault(asset => asset.Name == zip.Name + ".sha256")?.Url
             ?? throw new InvalidOperationException("릴리스 SHA-256 파일을 찾지 못했습니다.");
         return new ManagerRelease(version, zipUrl, hashUrl);
     }
