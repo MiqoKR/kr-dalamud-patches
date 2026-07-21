@@ -1,23 +1,6 @@
 {
   "schemaVersion": 1,
   "channel": "testing",
-  "updatedAt": "2026-07-21T00:00:00Z",
-  "patches": [
-    {
-      "id": "customizeplus-kr-actor",
-      "name": "Customize+ KR 캐릭터 인식",
-      "group": "compatibility",
-      "status": "validated-local",
-      "patcherVersion": "0.1.0",
-      "supportedPlugin": {
-        "name": "Customize+",
-        "version": "2.2.0.3",
-        "customizePlusSha256": "3F4396A2A83E392E69517EBCAA19B8AEF57FA3604F7A5E188A4306B6738134C7",
-        "gameDataSha256": "7CE2D315AA10292FA3A241107FB9DE6CD38C1BE71EB25E1099BC0613BD8682A4"
-      },
-      "release": null,
-      "notes": "한국어 단일 캐릭터명과 한국 서버 월드 ID 인식이 실제 환경에서 검증되었습니다. GitHub 첫 릴리스 후 stable 카탈로그로 승격합니다."
-    }
-  ]
+  "updatedAt": "2026-07-21T08:50:32Z",
+  "patches": []
 }
-
