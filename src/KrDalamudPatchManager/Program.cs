@@ -666,10 +666,18 @@ internal sealed class PatchModule
             (source, hook, output) => CustomizePlusPatchCore.Patch(source, hook, output),
             legacyMarker: "CustomizePlus.KR.Actor.Patch.json"),
         new PatchModule(
-            "glamourer", "Glamourer KR 호환성", "호환성", "Glamourer", new[] { "1.6.1.7" }, new[] { "Glamourer.dll", "Penumbra.GameData.dll" }, "한국어 캐릭터 조건 · CreateNewModel 호환",
+            "glamourer", "Glamourer KR 호환성", "호환성", "Glamourer", new[] { "1.6.1.7", "1.7.0.1" }, new[] { "Glamourer.dll", "Penumbra.GameData.dll" }, "한국어 캐릭터 조건 · CreateNewModel 호환",
             GlamourerPatchCore.IsPatched,
             (source, hook, output) => GlamourerPatchCore.Patch(source, hook, output),
-            legacyMarker: "Glamourer.KR.Actor.Patch.json"),
+            legacyMarker: "Glamourer.KR.Actor.Patch.json",
+            originalHashesByVersion: new Dictionary<string, IReadOnlyDictionary<string, string>>
+            {
+                ["1.7.0.1"] = new Dictionary<string, string>
+                {
+                    ["Glamourer.dll"] = "BE9484C105846C577AF2C98DEA09CEB670AAFFA16C3CB57BE6F51E4CBDB9BB60",
+                    ["Penumbra.GameData.dll"] = "A9BB73AA345245066ED23ED6C8CF95758E4A658FED09432499FEEDF20A258062",
+                },
+            }),
         new PatchModule(
             "bossmodreborn", "BossModReborn KR 데이터", "KR 데이터", "BossModReborn", new[] { "7.5.1.26", "7.5.1.29" }, new[] { "BossModReborn.dll" }, "KR Lumina 시트 · legacy map-effect 제거",
             BossModPatchCore.IsPatched,

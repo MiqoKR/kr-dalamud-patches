@@ -20,6 +20,8 @@ Patch Manager의 `검증 성공 조건` 열은 단순 파일 존재 여부가 �
 | BossModReborn | KR Lumina 시트 호출과 legacy map-effect 참조 제거 |
 | GatherBuddyReborn | 언어 fallback 및 낚시 Regex fallback |
 
+Glamourer `1.7.0.1`은 격리 복사본에서 KR 패치 적용·검증을 통과했고, 원본 `Glamourer.dll`과 `Penumbra.GameData.dll`의 SHA-256을 고정한 지원 버전입니다.
+
 ## Patch Manager 사용
 
 1. 게임, XIVLauncher, Dalamud를 모두 종료합니다.
