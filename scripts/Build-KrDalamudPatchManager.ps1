@@ -2,7 +2,7 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
-    [string]$Version = '0.1.0',
+    [string]$Version = '0.1.1',
     [switch]$NoRestore
 )
 
@@ -42,4 +42,3 @@ if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
 
 Write-Host "빌드 완료: $executable"
 Get-FileHash -LiteralPath $executable -Algorithm SHA256 | Format-List
-

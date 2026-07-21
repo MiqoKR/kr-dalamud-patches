@@ -96,10 +96,11 @@ internal sealed class PatchManagerForm : Form
         modulesView.GridLines = true;
         modulesView.HideSelection = false;
         modulesView.View = View.Details;
-        modulesView.Columns.Add("모듈", 215);
-        modulesView.Columns.Add("분류", 120);
-        modulesView.Columns.Add("설치 버전", 115);
-        modulesView.Columns.Add("상태", 390);
+        modulesView.Columns.Add("모듈", 180);
+        modulesView.Columns.Add("분류", 95);
+        modulesView.Columns.Add("설치 버전", 100);
+        modulesView.Columns.Add("상태", 210);
+        modulesView.Columns.Add("검증 성공 조건", 275);
         Controls.Add(modulesView);
 
         applyButton.Text = "선택 항목 적용";
@@ -156,6 +157,7 @@ internal sealed class PatchManagerForm : Form
             item.SubItems.Add(module.Group);
             item.SubItems.Add(status.Version ?? "미설치");
             item.SubItems.Add(status.Message);
+            item.SubItems.Add(module.SuccessCase);
             item.ForeColor = status.IsError ? Color.Firebrick : status.IsPatched ? Color.FromArgb(20, 110, 62) : Color.FromArgb(45, 48, 54);
             modulesView.Items.Add(item);
         }
@@ -251,6 +253,7 @@ internal sealed class PatchModule
         string pluginFolder,
         string expectedVersion,
         string[] files,
+        string successCase,
         Func<string, string, bool> verify,
         Action<string, string, string>? patchToStaging = null,
         Action<string, string>? patchInPlace = null,
@@ -262,6 +265,7 @@ internal sealed class PatchModule
         PluginFolder = pluginFolder;
         ExpectedVersion = expectedVersion;
         Files = files;
+        SuccessCase = successCase;
         this.verify = verify;
         this.patchToStaging = patchToStaging;
         this.patchInPlace = patchInPlace;
@@ -274,27 +278,28 @@ internal sealed class PatchModule
     public string PluginFolder { get; }
     public string ExpectedVersion { get; }
     public string[] Files { get; }
+    public string SuccessCase { get; }
     public string? LegacyMarker { get; }
     private string ManagerMarker => $"KR.Dalamud.PatchManager.{Id}.json";
 
     public static List<PatchModule> CreateAll() => new()
     {
         new PatchModule(
-            "customizeplus", "Customize+ KR 캐릭터 인식", "호환성", "CustomizePlus", "2.2.0.3", new[] { "Penumbra.GameData.dll" },
+            "customizeplus", "Customize+ KR 캐릭터 인식", "호환성", "CustomizePlus", "2.2.0.3", new[] { "Penumbra.GameData.dll" }, "한국어 단일 이름 · KR 월드 ID 인식",
             (plugin, hook) => TryVerify(() => CustomizePlusPatchCore.Verify(plugin, hook)),
             (source, hook, output) => CustomizePlusPatchCore.Patch(source, hook, output),
             legacyMarker: "CustomizePlus.KR.Actor.Patch.json"),
         new PatchModule(
-            "glamourer", "Glamourer KR 호환성", "호환성", "Glamourer", "1.6.1.7", new[] { "Glamourer.dll", "Penumbra.GameData.dll" },
+            "glamourer", "Glamourer KR 호환성", "호환성", "Glamourer", "1.6.1.7", new[] { "Glamourer.dll", "Penumbra.GameData.dll" }, "한국어 캐릭터 조건 · CreateNewModel 호환",
             GlamourerPatchCore.IsPatched,
             (source, hook, output) => GlamourerPatchCore.Patch(source, hook, output),
             legacyMarker: "Glamourer.KR.Actor.Patch.json"),
         new PatchModule(
-            "bossmodreborn", "BossModReborn KR 데이터", "KR 데이터", "BossModReborn", "7.5.1.26", new[] { "BossModReborn.dll" },
+            "bossmodreborn", "BossModReborn KR 데이터", "KR 데이터", "BossModReborn", "7.5.1.26", new[] { "BossModReborn.dll" }, "KR Lumina 시트 · legacy map-effect 제거",
             BossModPatchCore.IsPatched,
             patchInPlace: BossModPatchCore.Patch),
         new PatchModule(
-            "gatherbuddyreborn", "GatherBuddyReborn KR 데이터", "KR 데이터", "GatherBuddyReborn", "7.5.1.0", new[] { "GatherBuddy.GameData.dll", "GatherBuddyReborn.dll" },
+            "gatherbuddyreborn", "GatherBuddyReborn KR 데이터", "KR 데이터", "GatherBuddyReborn", "7.5.1.0", new[] { "GatherBuddy.GameData.dll", "GatherBuddyReborn.dll" }, "언어 fallback · 낚시 Regex fallback",
             GatherBuddyPatchCore.IsPatched,
             (source, hook, output) => GatherBuddyPatchCore.Patch(source, output, hook)),
     };

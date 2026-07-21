@@ -11,6 +11,15 @@
 | KR 데이터 | BossModReborn KR | 조사 예정 |
 | KR 데이터 | GatherBuddyReborn KR | 조사 예정 |
 
+Patch Manager의 `검증 성공 조건` 열은 단순 파일 존재 여부가 아니라, 각 모듈이 실제로 검사한 패치 효과를 표시합니다.
+
+| 모듈 | 검증 성공 조건 |
+| --- | --- |
+| Customize+ | 한국어 단일 캐릭터명과 KR 월드 ID 인식 |
+| Glamourer | 한국어 캐릭터 조건과 CreateNewModel 호환 |
+| BossModReborn | KR Lumina 시트 호출과 legacy map-effect 참조 제거 |
+| GatherBuddyReborn | 언어 fallback 및 낚시 Regex fallback |
+
 ## Patch Manager 사용
 
 1. 게임, XIVLauncher, Dalamud를 모두 종료합니다.
