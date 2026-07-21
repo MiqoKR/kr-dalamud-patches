@@ -31,6 +31,14 @@ internal static class Program
             return 0;
         }
 
+        if (args.Length == 3 && args[0] == "--inspect-pending")
+        {
+            var module = PatchModule.CreateAll().FirstOrDefault(candidate => candidate.Id == args[2] && candidate.CanInspectUpdates)
+                ?? throw new ArgumentException("새 버전 검사 지원 모듈을 찾지 못했습니다.");
+            Console.WriteLine(PendingPatchInspector.Inspect(module, args[1]));
+            return 0;
+        }
+
         ApplicationConfiguration.Initialize();
         Application.Run(new PatchManagerForm());
         return 0;
@@ -47,6 +55,7 @@ internal sealed class PatchManagerForm : Form
     private readonly Button refreshButton = new();
     private readonly Button browseButton = new();
     private readonly Button updateButton = new();
+    private readonly Button inspectUpdateButton = new();
     private readonly List<PatchModule> modules = PatchModule.CreateAll();
     private bool busy;
 
@@ -131,6 +140,11 @@ internal sealed class PatchManagerForm : Form
         updateButton.SetBounds(472, 398, 130, 34);
         updateButton.Click += async (_, _) => await CheckForUpdateAsync();
         Controls.Add(updateButton);
+
+        inspectUpdateButton.Text = "새 버전 검사";
+        inspectUpdateButton.SetBounds(610, 398, 130, 34);
+        inspectUpdateButton.Click += async (_, _) => await InspectSelectedUpdatesAsync();
+        Controls.Add(inspectUpdateButton);
 
         Controls.Add(new Label
         {
@@ -283,6 +297,20 @@ internal sealed class PatchManagerForm : Form
         }
     }
 
+    private async Task InspectSelectedUpdatesAsync()
+    {
+        var selected = SelectedModules().Where(module => module.CanInspectUpdates).ToArray();
+        if (selected.Length == 0)
+        {
+            MessageBox.Show(this, "BossModReborn 또는 GatherBuddyReborn을 선택하세요.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        await RunAsync("새 버전 격리 검사", () => selected
+            .Select(module => PendingPatchInspector.Inspect(module, profileRootBox.Text))
+            .ToArray());
+    }
+
     private void SetBusy(bool value)
     {
         busy = value;
@@ -291,6 +319,7 @@ internal sealed class PatchManagerForm : Form
         refreshButton.Enabled = !value;
         browseButton.Enabled = !value;
         updateButton.Enabled = !value;
+        inspectUpdateButton.Enabled = !value;
         UseWaitCursor = value;
     }
 
@@ -407,6 +436,179 @@ internal static class PatchManagerUpdater
 
 internal sealed record ManagerRelease(Version Version, string ZipUrl, string HashUrl);
 
+internal static class PendingPatchInspector
+{
+    private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromMinutes(5) };
+
+    public static string Inspect(PatchModule module, string profileRoot)
+    {
+        var reportContext = new InspectionReportContext(module.Id, null, null, null, null, null, null);
+        try
+        {
+            var root = Path.GetFullPath(profileRoot);
+            var installedDirectory = FindInstalledDirectory(root, module);
+            var installedVersion = Version.Parse(Path.GetFileName(installedDirectory));
+            var hookDirectory = PatchModule.FindHookDirectory(root);
+            var manifestUrl = module.OfficialManifestUrl ?? throw new InvalidOperationException("공식 매니페스트 URL이 설정되지 않았습니다.");
+            var entry = LoadOfficialEntry(manifestUrl, module.PluginFolder);
+            var latestVersionText = GetString(entry, "AssemblyVersion") ?? throw new InvalidOperationException("공식 매니페스트에 AssemblyVersion이 없습니다.");
+            var latestVersion = Version.Parse(latestVersionText);
+            var downloadUrl = GetString(entry, "DownloadLinkUpdate") ?? GetString(entry, "DownloadLinkInstall")
+                ?? throw new InvalidOperationException("공식 매니페스트에 다운로드 URL이 없습니다.");
+            reportContext = reportContext with { InstalledVersion = installedVersion.ToString(), LatestVersion = latestVersion.ToString(), ManifestUrl = manifestUrl, DownloadUrl = downloadUrl };
+
+            if (latestVersion <= installedVersion)
+            {
+                var report = WriteReport(root, reportContext with { Outcome = "already-current", Message = "설치된 버전이 공식 최신 버전과 같거나 더 높습니다." });
+                return $"{module.Name}: 새 버전 없음 · 리포트: {report}";
+            }
+
+            var temporaryRoot = Path.Combine(Path.GetTempPath(), "KR-Dalamud-PatchManager", "pending", module.Id, Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(temporaryRoot);
+                var archive = Path.Combine(temporaryRoot, "official-release.zip");
+                Download(downloadUrl, archive);
+                var archiveHash = HashFile(archive);
+                var extracted = Path.Combine(temporaryRoot, "extracted");
+                ZipFile.ExtractToDirectory(archive, extracted);
+                var candidateDirectory = FindCandidateDirectory(extracted, module);
+                var originalHashes = module.Files.ToDictionary(file => file, file => HashFile(Path.Combine(candidateDirectory, file)));
+                var patchResult = module.ValidateStagedCandidate(candidateDirectory, hookDirectory);
+                reportContext = reportContext with
+                {
+                    ArchiveSha256 = archiveHash,
+                    OriginalFileHashes = originalHashes,
+                    PatchedFileHashes = patchResult.PatchedFileHashes,
+                    Outcome = patchResult.Success ? "existing-patch-compatible" : "patch-update-required",
+                    Message = patchResult.Success ? patchResult.Message : patchResult.Error ?? patchResult.Message,
+                };
+                var report = WriteReport(root, reportContext);
+                return patchResult.Success
+                    ? $"{module.Name} {latestVersion}: 기존 패치 로직 검증 성공 · 설치본은 변경하지 않음 · 리포트: {report}"
+                    : $"{module.Name} {latestVersion}: 지원 대기 · 새 패치 작업 필요 · 설치본은 변경하지 않음 · 리포트: {report}";
+            }
+            finally
+            {
+                TryDeleteDirectory(temporaryRoot);
+            }
+        }
+        catch (Exception ex)
+        {
+            var root = Path.GetFullPath(profileRoot);
+            var report = TryWriteReport(root, reportContext with { Outcome = "inspection-failed", Message = ex.ToString() });
+            return $"{module.Name}: 새 버전 검사 실패{(report == null ? string.Empty : $" · 리포트: {report}")}";
+        }
+    }
+
+    private static JsonElement LoadOfficialEntry(string manifestUrl, string internalName)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, manifestUrl);
+        request.Headers.UserAgent.ParseAdd("KR-Dalamud-PatchManager");
+        using var response = Client.Send(request, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(response.Content.ReadAsStream());
+        var entries = document.RootElement.ValueKind == JsonValueKind.Array
+            ? document.RootElement.EnumerateArray()
+            : document.RootElement.GetProperty("plugins").EnumerateArray();
+        foreach (var entry in entries)
+        {
+            if (string.Equals(GetString(entry, "InternalName"), internalName, StringComparison.Ordinal))
+            {
+                return entry.Clone();
+            }
+        }
+
+        throw new InvalidOperationException($"공식 매니페스트에서 {internalName} 항목을 찾지 못했습니다.");
+    }
+
+    private static string FindInstalledDirectory(string profileRoot, PatchModule module)
+    {
+        var pluginRoot = Path.Combine(profileRoot, "installedPlugins", module.PluginFolder);
+        return Directory.GetDirectories(pluginRoot)
+                   .Where(directory => module.Files.All(file => File.Exists(Path.Combine(directory, file))))
+                   .OrderByDescending(Path.GetFileName)
+                   .FirstOrDefault()
+               ?? throw new DirectoryNotFoundException($"{module.Name} 설치 폴더를 찾지 못했습니다.");
+    }
+
+    private static string FindCandidateDirectory(string extractedRoot, PatchModule module)
+    {
+        var candidates = new[] { extractedRoot }.Concat(Directory.GetDirectories(extractedRoot, "*", SearchOption.AllDirectories));
+        return candidates.FirstOrDefault(directory => module.Files.All(file => File.Exists(Path.Combine(directory, file))))
+               ?? throw new FileNotFoundException($"공식 ZIP에서 {module.Name} DLL을 찾지 못했습니다.");
+    }
+
+    private static string WriteReport(string profileRoot, InspectionReportContext context)
+    {
+        var version = context.LatestVersion ?? "unknown";
+        var directory = Path.Combine(profileRoot, "kr-patch-reports", context.ModuleId, version);
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".json");
+        File.WriteAllText(path, JsonSerializer.Serialize(context, new JsonSerializerOptions { WriteIndented = true }));
+        return path;
+    }
+
+    private static string? TryWriteReport(string profileRoot, InspectionReportContext context)
+    {
+        try
+        {
+            return WriteReport(profileRoot, context);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void Download(string url, string destination)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.UserAgent.ParseAdd("KR-Dalamud-PatchManager");
+        using var response = Client.Send(request, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+        using var source = response.Content.ReadAsStream();
+        using var target = File.Create(destination);
+        source.CopyTo(target);
+    }
+
+    private static string? GetString(JsonElement element, string property)
+        => element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+
+    private static string HashFile(string path)
+    {
+        using var stream = File.OpenRead(path);
+        return Convert.ToHexString(SHA256.HashData(stream));
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, true);
+            }
+        }
+        catch
+        {
+            // The inspector leaves an inaccessible temporary folder for operating-system cleanup.
+        }
+    }
+
+    private sealed record InspectionReportContext(
+        string ModuleId,
+        string? InstalledVersion,
+        string? LatestVersion,
+        string? ManifestUrl,
+        string? DownloadUrl,
+        string? ArchiveSha256,
+        IReadOnlyDictionary<string, string>? OriginalFileHashes,
+        IReadOnlyDictionary<string, string>? PatchedFileHashes = null,
+        string? Outcome = null,
+        string? Message = null);
+}
+
 internal sealed class PatchModule
 {
     private readonly Func<string, string, bool> verify;
@@ -418,57 +620,78 @@ internal sealed class PatchModule
         string name,
         string group,
         string pluginFolder,
-        string expectedVersion,
+        IReadOnlyCollection<string> supportedVersions,
         string[] files,
         string successCase,
         Func<string, string, bool> verify,
         Action<string, string, string>? patchToStaging = null,
         Action<string, string>? patchInPlace = null,
-        string? legacyMarker = null)
+        string? legacyMarker = null,
+        string? officialManifestUrl = null,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? originalHashesByVersion = null)
     {
         Id = id;
         Name = name;
         Group = group;
         PluginFolder = pluginFolder;
-        ExpectedVersion = expectedVersion;
+        SupportedVersions = supportedVersions;
         Files = files;
         SuccessCase = successCase;
         this.verify = verify;
         this.patchToStaging = patchToStaging;
         this.patchInPlace = patchInPlace;
         LegacyMarker = legacyMarker;
+        OfficialManifestUrl = officialManifestUrl;
+        OriginalHashesByVersion = originalHashesByVersion ?? new Dictionary<string, IReadOnlyDictionary<string, string>>();
     }
 
     public string Id { get; }
     public string Name { get; }
     public string Group { get; }
     public string PluginFolder { get; }
-    public string ExpectedVersion { get; }
+    public IReadOnlyCollection<string> SupportedVersions { get; }
     public string[] Files { get; }
     public string SuccessCase { get; }
     public string? LegacyMarker { get; }
+    public string? OfficialManifestUrl { get; }
+    public bool CanInspectUpdates => OfficialManifestUrl != null;
+    private IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> OriginalHashesByVersion { get; }
     private string ManagerMarker => $"KR.Dalamud.PatchManager.{Id}.json";
 
     public static List<PatchModule> CreateAll() => new()
     {
         new PatchModule(
-            "customizeplus", "Customize+ KR 캐릭터 인식", "호환성", "CustomizePlus", "2.2.0.3", new[] { "Penumbra.GameData.dll" }, "한국어 단일 이름 · KR 월드 ID 인식",
+            "customizeplus", "Customize+ KR 캐릭터 인식", "호환성", "CustomizePlus", new[] { "2.2.0.3" }, new[] { "Penumbra.GameData.dll" }, "한국어 단일 이름 · KR 월드 ID 인식",
             (plugin, hook) => TryVerify(() => CustomizePlusPatchCore.Verify(plugin, hook)),
             (source, hook, output) => CustomizePlusPatchCore.Patch(source, hook, output),
             legacyMarker: "CustomizePlus.KR.Actor.Patch.json"),
         new PatchModule(
-            "glamourer", "Glamourer KR 호환성", "호환성", "Glamourer", "1.6.1.7", new[] { "Glamourer.dll", "Penumbra.GameData.dll" }, "한국어 캐릭터 조건 · CreateNewModel 호환",
+            "glamourer", "Glamourer KR 호환성", "호환성", "Glamourer", new[] { "1.6.1.7" }, new[] { "Glamourer.dll", "Penumbra.GameData.dll" }, "한국어 캐릭터 조건 · CreateNewModel 호환",
             GlamourerPatchCore.IsPatched,
             (source, hook, output) => GlamourerPatchCore.Patch(source, hook, output),
             legacyMarker: "Glamourer.KR.Actor.Patch.json"),
         new PatchModule(
-            "bossmodreborn", "BossModReborn KR 데이터", "KR 데이터", "BossModReborn", "7.5.1.26", new[] { "BossModReborn.dll" }, "KR Lumina 시트 · legacy map-effect 제거",
+            "bossmodreborn", "BossModReborn KR 데이터", "KR 데이터", "BossModReborn", new[] { "7.5.1.26", "7.5.1.29" }, new[] { "BossModReborn.dll" }, "KR Lumina 시트 · legacy map-effect 제거",
             BossModPatchCore.IsPatched,
-            patchInPlace: BossModPatchCore.Patch),
+            patchInPlace: BossModPatchCore.Patch,
+            officialManifestUrl: "https://raw.githubusercontent.com/FFXIV-CombatReborn/CombatRebornRepo/main/pluginmaster.json",
+            originalHashesByVersion: new Dictionary<string, IReadOnlyDictionary<string, string>>
+            {
+                ["7.5.1.29"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "CBE3723EB0721949258D05986E7055DBC2EC892CA17D08278AFDEFCBE8746C8F" },
+            }),
         new PatchModule(
-            "gatherbuddyreborn", "GatherBuddyReborn KR 데이터", "KR 데이터", "GatherBuddyReborn", "7.5.1.0", new[] { "GatherBuddy.GameData.dll", "GatherBuddyReborn.dll" }, "언어 fallback · 낚시 Regex fallback",
+            "gatherbuddyreborn", "GatherBuddyReborn KR 데이터", "KR 데이터", "GatherBuddyReborn", new[] { "7.5.1.0", "7.5.1.1" }, new[] { "GatherBuddy.GameData.dll", "GatherBuddyReborn.dll" }, "언어 fallback · 낚시 Regex fallback",
             GatherBuddyPatchCore.IsPatched,
-            (source, hook, output) => GatherBuddyPatchCore.Patch(source, output, hook)),
+            (source, hook, output) => GatherBuddyPatchCore.Patch(source, output, hook),
+            officialManifestUrl: "https://raw.githubusercontent.com/FFXIV-CombatReborn/CombatRebornRepo/main/pluginmaster.json",
+            originalHashesByVersion: new Dictionary<string, IReadOnlyDictionary<string, string>>
+            {
+                ["7.5.1.1"] = new Dictionary<string, string>
+                {
+                    ["GatherBuddy.GameData.dll"] = "D8C8AC73285F2D2A9D2B3B17ACACFA07BF08E634B2703F0D8E081E5E83C4E3C2",
+                    ["GatherBuddyReborn.dll"] = "F6609A3E47FD0D37BFF31E64F27773C18EC07E59F0367CC969D603984434481B",
+                },
+            }),
     };
 
     public ModuleStatus GetStatus(string profileRoot)
@@ -476,9 +699,9 @@ internal sealed class PatchModule
         try
         {
             var context = Discover(profileRoot);
-            if (!context.Version.Equals(ExpectedVersion, StringComparison.Ordinal))
+            if (!SupportedVersions.Contains(context.Version, StringComparer.Ordinal))
             {
-                return new ModuleStatus(context.Version, $"미지원 버전입니다. 현재 지원: {ExpectedVersion}", false, true, false, false);
+                return new ModuleStatus(context.Version, $"미지원 버전입니다. 현재 지원: {string.Join(", ", SupportedVersions)}", false, true, false, false);
             }
 
             if (verify(context.PluginDirectory, context.HookDirectory))
@@ -490,6 +713,7 @@ internal sealed class PatchModule
                 return new ModuleStatus(context.Version, message, true, false, false, canRestore);
             }
 
+            RequireKnownOriginalHash(context);
             return new ModuleStatus(context.Version, "적용 가능 · 원본 백업 후 처리", false, false, true, false);
         }
         catch (Exception ex)
@@ -506,6 +730,8 @@ internal sealed class PatchModule
         {
             return $"{Name}: 이미 적용되어 있습니다.";
         }
+
+        RequireKnownOriginalHash(context);
 
         var backup = CreateBackup(context);
         try
@@ -580,6 +806,47 @@ internal sealed class PatchModule
         return $"{Name}: 원본 복원 완료 (백업: {backup})";
     }
 
+    internal CandidatePatchResult ValidateStagedCandidate(string sourceDirectory, string hookDirectory)
+    {
+        var stagingRoot = Path.Combine(Path.GetTempPath(), "KR-Dalamud-PatchManager", "candidate", Id, Guid.NewGuid().ToString("N"));
+        try
+        {
+            string patchedDirectory;
+            if (patchInPlace != null)
+            {
+                patchedDirectory = Path.Combine(stagingRoot, "plugin");
+                CopyDirectory(sourceDirectory, patchedDirectory);
+                patchInPlace(patchedDirectory, hookDirectory);
+            }
+            else if (patchToStaging != null)
+            {
+                patchedDirectory = Path.Combine(stagingRoot, "patched");
+                patchToStaging(sourceDirectory, hookDirectory, patchedDirectory);
+            }
+            else
+            {
+                throw new InvalidOperationException("패치 모듈 구현을 찾지 못했습니다.");
+            }
+
+            if (!verify(patchedDirectory, hookDirectory))
+            {
+                throw new InvalidOperationException("격리된 후보 파일의 패치 후 검증에 실패했습니다.");
+            }
+
+            return new CandidatePatchResult(true, "기존 패치 로직으로 검증 성공", Files.ToDictionary(
+                file => file,
+                file => HashFile(Path.Combine(patchedDirectory, file))), null);
+        }
+        catch (Exception ex)
+        {
+            return new CandidatePatchResult(false, "새 버전에 기존 패치 로직을 적용할 수 없습니다.", null, ex.ToString());
+        }
+        finally
+        {
+            TryDeleteDirectory(stagingRoot);
+        }
+    }
+
     public static void EnsureGameStopped()
     {
         var blocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -613,9 +880,26 @@ internal sealed class PatchModule
 
     private void RequireSupported(ModuleContext context)
     {
-        if (!context.Version.Equals(ExpectedVersion, StringComparison.Ordinal))
+        if (!SupportedVersions.Contains(context.Version, StringComparer.Ordinal))
         {
-            throw new InvalidOperationException($"{Name} {context.Version}은(는) 지원하지 않습니다. 현재 지원 버전: {ExpectedVersion}");
+            throw new InvalidOperationException($"{Name} {context.Version}은(는) 지원하지 않습니다. 현재 지원 버전: {string.Join(", ", SupportedVersions)}");
+        }
+    }
+
+    private void RequireKnownOriginalHash(ModuleContext context)
+    {
+        if (!OriginalHashesByVersion.TryGetValue(context.Version, out var expectedHashes))
+        {
+            return;
+        }
+
+        foreach (var (file, expectedHash) in expectedHashes)
+        {
+            var actualHash = HashFile(Path.Combine(context.PluginDirectory, file));
+            if (!actualHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"{Name} {context.Version}의 {file} 원본 SHA-256이 검증값과 다릅니다.");
+            }
         }
     }
 
@@ -645,7 +929,7 @@ internal sealed class PatchModule
         File.WriteAllText(Path.Combine(context.PluginDirectory, ManagerMarker), JsonSerializer.Serialize(marker, new JsonSerializerOptions { WriteIndented = true }));
     }
 
-    private static string FindHookDirectory(string profileRoot)
+    internal static string FindHookDirectory(string profileRoot)
     {
         var hooksRoot = Path.Combine(profileRoot, "addon", "Hooks");
         if (!Directory.Exists(hooksRoot))
@@ -686,6 +970,23 @@ internal sealed class PatchModule
         }
     }
 
+    private static void CopyDirectory(string sourceDirectory, string destinationDirectory)
+    {
+        foreach (var sourcePath in Directory.EnumerateFileSystemEntries(sourceDirectory, "*", SearchOption.AllDirectories))
+        {
+            var relativePath = Path.GetRelativePath(sourceDirectory, sourcePath);
+            var destinationPath = Path.Combine(destinationDirectory, relativePath);
+            if (Directory.Exists(sourcePath))
+            {
+                Directory.CreateDirectory(destinationPath);
+                continue;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+            File.Copy(sourcePath, destinationPath, true);
+        }
+    }
+
     private static string HashFile(string path)
     {
         using var stream = File.OpenRead(path);
@@ -708,5 +1009,6 @@ internal sealed class PatchModule
     }
 
     internal sealed record ModuleStatus(string? Version, string Message, bool IsPatched, bool IsError, bool CanApply, bool CanRestore);
+    internal sealed record CandidatePatchResult(bool Success, string Message, IReadOnlyDictionary<string, string>? PatchedFileHashes, string? Error);
     private sealed record ModuleContext(string ProfileRoot, string PluginDirectory, string HookDirectory, string Version);
 }

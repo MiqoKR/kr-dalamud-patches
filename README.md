@@ -32,6 +32,8 @@ Patch Manager의 `검증 성공 조건` 열은 단순 파일 존재 여부가 �
 
 `업데이트 확인`은 GitHub의 최신 Patch Manager 릴리스를 조회합니다. 새 버전을 선택하면 ZIP의 SHA-256을 확인한 뒤 현재 실행 파일을 교체하고 자동으로 다시 시작합니다.
 
+BossModReborn과 GatherBuddyReborn은 `새 버전 검사`를 지원합니다. 이 기능은 공식 CombatReborn 매니페스트의 최신 ZIP을 **임시 폴더에만** 내려받아 기존 패치 로직을 적용·검증하고, 결과·원본 SHA-256·오류를 `%APPDATA%\\XIVLauncherKR\\kr-patch-reports`에 기록합니다. 실제 설치된 플러그인 파일은 검사 과정에서 변경하지 않습니다.
+
 ## 현재 제공 모듈
 
 `Customize+ KR 캐릭터 인식`은 한국어 단일 캐릭터명과 한국 서버 월드 ID를 Customize+ 프로필에서 인식하도록 보정합니다. Glamourer, BossModReborn, GatherBuddyReborn도 같은 실행 파일에서 독립 항목으로 처리합니다.
