@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using CustomizePlusKrActorPatcher;
 using GlamourerKrActorPatcher;
@@ -336,7 +337,14 @@ internal static class PatchManagerUpdater
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromMinutes(2) };
 
     public static Version CurrentVersion
-        => Version.TryParse(Application.ProductVersion, out var version) ? version : new Version(0, 0, 0);
+    {
+        get
+        {
+            var executablePath = Environment.ProcessPath;
+            var fileVersion = string.IsNullOrWhiteSpace(executablePath) ? null : FileVersionInfo.GetVersionInfo(executablePath).FileVersion;
+            return Version.TryParse(fileVersion, out var version) ? version : new Version(0, 0, 0);
+        }
+    }
 
     public static async Task<ManagerRelease> GetLatestReleaseAsync()
     {
@@ -425,11 +433,11 @@ internal static class PatchManagerUpdater
             "    }\r\n" +
             "}\r\n" +
             "if (-not $copied) {\r\n" +
-            $"    Start-Process -FilePath '{EscapePowerShell(replacement)}'\r\n" +
+            $"    Start-Process -FilePath '{EscapePowerShell(currentExecutable)}'\r\n" +
             "    exit 1\r\n" +
             "}\r\n" +
             $"Start-Process -FilePath '{EscapePowerShell(currentExecutable)}'\r\n";
-        File.WriteAllText(updateScript, script);
+        File.WriteAllText(updateScript, script, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
         Process.Start(new ProcessStartInfo
         {
             FileName = "powershell.exe",
