@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
 using CustomizePlusKrActorPatcher;
@@ -23,6 +24,13 @@ internal static class Program
             return 0;
         }
 
+        if (args.Length == 1 && args[0] == "--check-update")
+        {
+            var release = PatchManagerUpdater.GetLatestReleaseAsync().GetAwaiter().GetResult();
+            Console.WriteLine($"latest={release.Version}\nzip={release.ZipUrl}\nsha256={release.HashUrl}");
+            return 0;
+        }
+
         ApplicationConfiguration.Initialize();
         Application.Run(new PatchManagerForm());
         return 0;
@@ -38,6 +46,7 @@ internal sealed class PatchManagerForm : Form
     private readonly Button restoreButton = new();
     private readonly Button refreshButton = new();
     private readonly Button browseButton = new();
+    private readonly Button updateButton = new();
     private readonly List<PatchModule> modules = PatchModule.CreateAll();
     private bool busy;
 
@@ -117,6 +126,11 @@ internal sealed class PatchManagerForm : Form
         refreshButton.SetBounds(334, 398, 130, 34);
         refreshButton.Click += (_, _) => RefreshModules();
         Controls.Add(refreshButton);
+
+        updateButton.Text = "업데이트 확인";
+        updateButton.SetBounds(472, 398, 130, 34);
+        updateButton.Click += async (_, _) => await CheckForUpdateAsync();
+        Controls.Add(updateButton);
 
         Controls.Add(new Label
         {
@@ -226,6 +240,49 @@ internal sealed class PatchManagerForm : Form
         }
     }
 
+    private async Task CheckForUpdateAsync()
+    {
+        if (busy)
+        {
+            return;
+        }
+
+        SetBusy(true);
+        try
+        {
+            var release = await PatchManagerUpdater.GetLatestReleaseAsync();
+            var current = PatchManagerUpdater.CurrentVersion;
+            if (release.Version <= current)
+            {
+                MessageBox.Show(this, $"이미 최신 버전입니다.\n\n현재 버전: {current}", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var answer = MessageBox.Show(
+                this,
+                $"새 버전이 있습니다.\n\n현재: {current}\n최신: {release.Version}\n\nGitHub에서 내려받고 SHA-256을 확인한 뒤 프로그램을 다시 시작할까요?",
+                Text,
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+            if (answer != DialogResult.Yes)
+            {
+                return;
+            }
+
+            await PatchManagerUpdater.DownloadAndRestartAsync(release);
+            Environment.Exit(0);
+        }
+        catch (Exception ex)
+        {
+            AppendLog(ex.ToString());
+            MessageBox.Show(this, ex.Message, "업데이트 확인", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
     private void SetBusy(bool value)
     {
         busy = value;
@@ -233,12 +290,118 @@ internal sealed class PatchManagerForm : Form
         restoreButton.Enabled = !value;
         refreshButton.Enabled = !value;
         browseButton.Enabled = !value;
+        updateButton.Enabled = !value;
         UseWaitCursor = value;
     }
 
     private void AppendLog(string message)
         => logBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
 }
+
+internal static class PatchManagerUpdater
+{
+    private const string Repository = "MiqoKR/kr-dalamud-patches";
+    private const string AssetPrefix = "KR.Dalamud.PatchManager-";
+    private const string AssetSuffix = "-win-x64.zip";
+    private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromMinutes(2) };
+
+    public static Version CurrentVersion
+        => Version.TryParse(Application.ProductVersion, out var version) ? version : new Version(0, 0, 0);
+
+    public static async Task<ManagerRelease> GetLatestReleaseAsync()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{Repository}/releases?per_page=100");
+        request.Headers.UserAgent.ParseAdd("KR-Dalamud-PatchManager");
+        using var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync());
+
+        var selected = document.RootElement.EnumerateArray()
+            .Where(release => !release.GetProperty("draft").GetBoolean() && !release.GetProperty("prerelease").GetBoolean())
+            .Select(release => new { Release = release.Clone(), Tag = release.GetProperty("tag_name").GetString() })
+            .FirstOrDefault(item => item.Tag != null && item.Tag.StartsWith("patch-manager-v", StringComparison.Ordinal) &&
+                Version.TryParse(item.Tag["patch-manager-v".Length..], out _));
+        if (selected?.Tag == null || !Version.TryParse(selected.Tag["patch-manager-v".Length..], out var version))
+        {
+            throw new InvalidOperationException("배포 가능한 Patch Manager 릴리스를 찾지 못했습니다.");
+        }
+
+        var expectedZip = $"{AssetPrefix}{version}{AssetSuffix}";
+        var assets = selected.Release.GetProperty("assets").EnumerateArray().Select(asset => new
+        {
+            Name = asset.GetProperty("name").GetString(),
+            Url = asset.GetProperty("browser_download_url").GetString(),
+        }).ToArray();
+        var zipUrl = assets.FirstOrDefault(asset => asset.Name == expectedZip)?.Url
+            ?? throw new InvalidOperationException($"릴리스에서 {expectedZip}을(를) 찾지 못했습니다.");
+        var hashUrl = assets.FirstOrDefault(asset => asset.Name == expectedZip + ".sha256")?.Url
+            ?? throw new InvalidOperationException("릴리스 SHA-256 파일을 찾지 못했습니다.");
+        return new ManagerRelease(version, zipUrl, hashUrl);
+    }
+
+    public static async Task DownloadAndRestartAsync(ManagerRelease release)
+    {
+        var currentExecutable = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(currentExecutable) || !File.Exists(currentExecutable) ||
+            !currentExecutable.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("설치된 KR.Dalamud.PatchManager.exe에서만 자동 업데이트할 수 있습니다.");
+        }
+
+        var updateRoot = Path.Combine(Path.GetTempPath(), "KR-Dalamud-PatchManager", "updates", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(updateRoot);
+        var archive = Path.Combine(updateRoot, "update.zip");
+        var extracted = Path.Combine(updateRoot, "extracted");
+        var expectedHash = (await Client.GetStringAsync(release.HashUrl)).Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        if (expectedHash == null || expectedHash.Length != 64 || !expectedHash.All(Uri.IsHexDigit))
+        {
+            throw new InvalidOperationException("릴리스 SHA-256 값 형식이 올바르지 않습니다.");
+        }
+
+        await using (var source = await Client.GetStreamAsync(release.ZipUrl))
+        await using (var target = File.Create(archive))
+        {
+            await source.CopyToAsync(target);
+        }
+
+        var actualHash = await HashFileAsync(archive);
+        if (!actualHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("다운로드한 업데이트 파일의 SHA-256이 릴리스 값과 다릅니다.");
+        }
+
+        ZipFile.ExtractToDirectory(archive, extracted);
+        var replacement = Path.Combine(extracted, "KR.Dalamud.PatchManager.exe");
+        if (!File.Exists(replacement))
+        {
+            throw new InvalidOperationException("업데이트 압축 파일에서 실행 파일을 찾지 못했습니다.");
+        }
+
+        var updateScript = Path.Combine(updateRoot, "apply-update.ps1");
+        var script = $"$ErrorActionPreference = 'Stop'\r\n" +
+            $"Wait-Process -Id {Environment.ProcessId} -ErrorAction SilentlyContinue\r\n" +
+            $"Move-Item -LiteralPath '{EscapePowerShell(replacement)}' -Destination '{EscapePowerShell(currentExecutable)}' -Force\r\n" +
+            $"Start-Process -FilePath '{EscapePowerShell(currentExecutable)}'\r\n";
+        File.WriteAllText(updateScript, script);
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{updateScript}\"",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        });
+    }
+
+    private static async Task<string> HashFileAsync(string path)
+    {
+        await using var stream = File.OpenRead(path);
+        return Convert.ToHexString(await SHA256.HashDataAsync(stream));
+    }
+
+    private static string EscapePowerShell(string value) => value.Replace("'", "''", StringComparison.Ordinal);
+}
+
+internal sealed record ManagerRelease(Version Version, string ZipUrl, string HashUrl);
 
 internal sealed class PatchModule
 {
