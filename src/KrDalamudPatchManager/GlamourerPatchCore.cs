@@ -5,6 +5,17 @@ namespace GlamourerKrActorPatcher;
 
 internal static class GlamourerPatchCore
 {
+    private static readonly (ushort Id, string Name)[] KoreanWorldNames =
+    [
+        (2050, "바하무트"), (2051, "이프리트"), (2052, "가루다"), (2053, "라무"),
+        (2054, "오딘"), (2055, "알테마"), (2056, "만드라고라"), (2057, "구 톤베리"),
+        (2058, "엑스칼리버"), (2059, "피닉스"), (2060, "알렉산더"), (2061, "타이탄"),
+        (2062, "리바이어선"), (2063, "시바"), (2064, "베히모스"), (2065, "길가메시"),
+        (2066, "사보텐더"), (2067, "유니콘"), (2068, "라그나로크"), (2069, "라미아"),
+        (2075, "카벙클"), (2076, "초코보"), (2077, "모그리"), (2078, "톤베리"),
+        (2079, "캐트시"), (2080, "펜리르"), (2081, "오메가"),
+    ];
+
     public static void Patch(string pluginDirectory, string hookDirectory, string outputDirectory)
     {
         RequireDirectory(pluginDirectory);
@@ -212,6 +223,10 @@ internal static class GlamourerPatchCore
 
         try
         {
+            if (IsKoreanWorldDisplayPatched(module))
+                return;
+
+            var changed = false;
             var dictWorld = AllTypes(module.Types)
                 .FirstOrDefault(type => type.FullName == "Penumbra.GameData.DataContainers.DictWorld")
                 ?? throw Unsupported("DictWorld was not found.");
@@ -220,19 +235,25 @@ internal static class GlamourerPatchCore
                 method.ReturnType.FullName == "System.Boolean")
                 ?? throw Unsupported("DictWorld.IsValid was not found.");
 
-            if (IsKoreanWorldDisplayPatched(isValid))
-                return;
+            if (!IsKoreanWorldDictionaryPatched(isValid))
+            {
+                var upperCaseCheck = isValid.Body.Instructions.FirstOrDefault(instruction =>
+                    instruction.OpCode == OpCodes.Call && instruction.Operand is MethodReference method &&
+                    method.DeclaringType.FullName == "System.Char" && method.Name == "IsUpper" &&
+                    method.Parameters.Count == 1);
+                if (upperCaseCheck == null)
+                    throw Unsupported("DictWorld.IsValid upper-case world-name filter was not found.");
 
-            var upperCaseCheck = isValid.Body.Instructions.FirstOrDefault(instruction =>
-                instruction.OpCode == OpCodes.Call && instruction.Operand is MethodReference method &&
-                method.DeclaringType.FullName == "System.Char" && method.Name == "IsUpper" &&
-                method.Parameters.Count == 1);
-            if (upperCaseCheck == null)
-                throw Unsupported("DictWorld.IsValid upper-case world-name filter was not found.");
+                upperCaseCheck.OpCode = OpCodes.Pop;
+                upperCaseCheck.Operand = null;
+                isValid.Body.GetILProcessor().InsertAfter(upperCaseCheck, Instruction.Create(OpCodes.Ldc_I4_1));
+                changed = true;
+            }
 
-            upperCaseCheck.OpCode = OpCodes.Pop;
-            upperCaseCheck.Operand = null;
-            isValid.Body.GetILProcessor().InsertAfter(upperCaseCheck, Instruction.Create(OpCodes.Ldc_I4_1));
+            changed |= PatchKoreanWorldNameFallback(module);
+            if (!changed || !IsKoreanWorldDisplayPatched(module))
+                throw Unsupported("Korean world display patch verification failed before writing.");
+
             WriteAssembly(assembly, tempPath, dllPath);
         }
         finally
@@ -263,10 +284,10 @@ internal static class GlamourerPatchCore
         var isValid = dictWorld?.Methods.FirstOrDefault(method =>
             method.Name == "IsValid" && method.IsStatic && method.Parameters.Count == 1 &&
             method.ReturnType.FullName == "System.Boolean");
-        return isValid != null && IsKoreanWorldDisplayPatched(isValid);
+        return isValid != null && IsKoreanWorldDictionaryPatched(isValid) && IsKoreanWorldNameFallbackPatched(module);
     }
 
-    private static bool IsKoreanWorldDisplayPatched(MethodDefinition isValid)
+    private static bool IsKoreanWorldDictionaryPatched(MethodDefinition isValid)
     {
         var instructions = isValid.Body?.Instructions;
         if (instructions == null || instructions.Any(instruction =>
@@ -278,6 +299,82 @@ internal static class GlamourerPatchCore
 
         return instructions.Zip(instructions.Skip(1), (first, second) =>
             first.OpCode == OpCodes.Pop && second.OpCode == OpCodes.Ldc_I4_1).Any(pair => pair);
+    }
+
+    private static bool PatchKoreanWorldNameFallback(ModuleDefinition module)
+    {
+        var nameDicts = AllTypes(module.Types)
+            .FirstOrDefault(type => type.FullName == "Penumbra.GameData.Data.NameDicts")
+            ?? throw Unsupported("NameDicts was not found.");
+        if (IsKoreanWorldNameFallbackPatched(nameDicts))
+            return false;
+
+        var toWorldName = nameDicts.Methods.FirstOrDefault(method =>
+            method.Name == "ToWorldName" && method.Parameters.Count == 1 && method.ReturnType.FullName == "System.String")
+            ?? throw Unsupported("NameDicts.ToWorldName was not found.");
+        var worldIdType = AllTypes(module.Types)
+            .FirstOrDefault(type => type.FullName == "Penumbra.GameData.Structs.WorldId")
+            ?? throw Unsupported("WorldId was not found.");
+        var toUInt16 = worldIdType.Methods.FirstOrDefault(method =>
+            method.Name == "op_Implicit" && method.Parameters.Count == 1 && method.ReturnType.MetadataType == MetadataType.UInt16)
+            ?? throw Unsupported("WorldId to UInt16 implicit conversion was not found.");
+
+        var fallback = new MethodDefinition(
+            "GetKoreanWorldNameFallback",
+            MethodAttributes.Private | MethodAttributes.Static | MethodAttributes.HideBySig,
+            module.TypeSystem.String);
+        fallback.Parameters.Add(new ParameterDefinition("worldId", ParameterAttributes.None, module.ImportReference(worldIdType)));
+        nameDicts.Methods.Add(fallback);
+
+        var il = fallback.Body.GetILProcessor();
+        var labels = KoreanWorldNames.Select(_ => Instruction.Create(OpCodes.Nop)).ToArray();
+        for (var i = 0; i < KoreanWorldNames.Length; ++i)
+        {
+            il.Append(il.Create(OpCodes.Ldarg_0));
+            il.Append(il.Create(OpCodes.Call, module.ImportReference(toUInt16)));
+            il.Append(il.Create(OpCodes.Ldc_I4, (int)KoreanWorldNames[i].Id));
+            il.Append(il.Create(OpCodes.Beq, labels[i]));
+        }
+
+        il.Append(il.Create(OpCodes.Ldstr, "Invalid"));
+        il.Append(il.Create(OpCodes.Ret));
+        for (var i = 0; i < KoreanWorldNames.Length; ++i)
+        {
+            il.Append(labels[i]);
+            il.Append(il.Create(OpCodes.Ldstr, KoreanWorldNames[i].Name));
+            il.Append(il.Create(OpCodes.Ret));
+        }
+
+        var invalidFallback = toWorldName.Body.Instructions.SingleOrDefault(instruction =>
+            instruction.OpCode == OpCodes.Ldstr && string.Equals(instruction.Operand as string, "Invalid", StringComparison.Ordinal));
+        if (invalidFallback == null)
+            throw Unsupported("NameDicts.ToWorldName Invalid fallback was not found.");
+
+        invalidFallback.OpCode = OpCodes.Ldarg_1;
+        invalidFallback.Operand = null;
+        toWorldName.Body.GetILProcessor().InsertAfter(invalidFallback, Instruction.Create(OpCodes.Call, fallback));
+        return true;
+    }
+
+    private static bool IsKoreanWorldNameFallbackPatched(ModuleDefinition module)
+    {
+        var nameDicts = AllTypes(module.Types)
+            .FirstOrDefault(type => type.FullName == "Penumbra.GameData.Data.NameDicts");
+        return nameDicts != null && IsKoreanWorldNameFallbackPatched(nameDicts);
+    }
+
+    private static bool IsKoreanWorldNameFallbackPatched(TypeDefinition nameDicts)
+    {
+        var fallback = nameDicts.Methods.FirstOrDefault(method =>
+            method.Name == "GetKoreanWorldNameFallback" && method.IsStatic && method.Parameters.Count == 1 &&
+            method.ReturnType.FullName == "System.String");
+        var toWorldName = nameDicts.Methods.FirstOrDefault(method =>
+            method.Name == "ToWorldName" && method.Parameters.Count == 1 && method.ReturnType.FullName == "System.String");
+        return fallback != null && toWorldName?.Body?.Instructions.Any(instruction =>
+            instruction.Operand is MethodReference method && method.Name == fallback.Name &&
+            method.DeclaringType.FullName == nameDicts.FullName) == true &&
+            KoreanWorldNames.All(world => fallback.Body.Instructions.Any(instruction =>
+                instruction.OpCode == OpCodes.Ldstr && string.Equals(instruction.Operand as string, world.Name, StringComparison.Ordinal)));
     }
 
     private static bool ReturnsTrue(MethodDefinition method)
