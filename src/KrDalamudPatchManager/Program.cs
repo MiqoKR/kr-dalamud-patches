@@ -634,8 +634,10 @@ internal static class PendingPatchInspector
 internal sealed class PatchModule
 {
     private readonly Func<string, string, bool> verify;
+    private readonly Func<string, string, bool>? needsUpgrade;
     private readonly Action<string, string, string>? patchToStaging;
     private readonly Action<string, string>? patchInPlace;
+    private readonly Action<string, string>? upgradeInPlace;
 
     private PatchModule(
         string id,
@@ -648,6 +650,8 @@ internal sealed class PatchModule
         Func<string, string, bool> verify,
         Action<string, string, string>? patchToStaging = null,
         Action<string, string>? patchInPlace = null,
+        Func<string, string, bool>? needsUpgrade = null,
+        Action<string, string>? upgradeInPlace = null,
         string? legacyMarker = null,
         string? officialManifestUrl = null,
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? originalHashesByVersion = null)
@@ -660,8 +664,10 @@ internal sealed class PatchModule
         Files = files;
         SuccessCase = successCase;
         this.verify = verify;
+        this.needsUpgrade = needsUpgrade;
         this.patchToStaging = patchToStaging;
         this.patchInPlace = patchInPlace;
+        this.upgradeInPlace = upgradeInPlace;
         LegacyMarker = legacyMarker;
         OfficialManifestUrl = officialManifestUrl;
         OriginalHashesByVersion = originalHashesByVersion ?? new Dictionary<string, IReadOnlyDictionary<string, string>>();
@@ -691,6 +697,8 @@ internal sealed class PatchModule
             "glamourer", "Glamourer KR 호환성", "호환성", "Glamourer", new[] { "1.6.1.7", "1.7.0.1" }, new[] { "Glamourer.dll", "Penumbra.GameData.dll" }, "한국어 캐릭터 조건 · CreateNewModel 호환",
             GlamourerPatchCore.IsPatched,
             (source, hook, output) => GlamourerPatchCore.Patch(source, hook, output),
+            needsUpgrade: GlamourerPatchCore.NeedsWorldDisplayUpgrade,
+            upgradeInPlace: GlamourerPatchCore.UpgradeWorldDisplay,
             legacyMarker: "Glamourer.KR.Actor.Patch.json",
             originalHashesByVersion: new Dictionary<string, IReadOnlyDictionary<string, string>>
             {
@@ -743,6 +751,11 @@ internal sealed class PatchModule
                 return new ModuleStatus(context.Version, message, true, false, false, canRestore);
             }
 
+            if (needsUpgrade?.Invoke(context.PluginDirectory, context.HookDirectory) == true && upgradeInPlace != null)
+            {
+                return new ModuleStatus(context.Version, "표시용 KR 월드명 사전 보완을 적용할 수 있습니다.", false, false, true, FindMarker(context) != null);
+            }
+
             RequireKnownOriginalHash(context);
             return new ModuleStatus(context.Version, "적용 가능 · 원본 백업 후 처리", false, false, true, false);
         }
@@ -759,6 +772,22 @@ internal sealed class PatchModule
         if (verify(context.PluginDirectory, context.HookDirectory))
         {
             return $"{Name}: 이미 적용되어 있습니다.";
+        }
+
+        if (needsUpgrade?.Invoke(context.PluginDirectory, context.HookDirectory) == true && upgradeInPlace != null)
+        {
+            if (FindMarker(context) == null)
+            {
+                throw new InvalidOperationException($"{Name}: 기존 패치의 원본 백업을 찾지 못했습니다. 먼저 복원 후 다시 적용해 주세요.");
+            }
+
+            upgradeInPlace(context.PluginDirectory, context.HookDirectory);
+            if (!verify(context.PluginDirectory, context.HookDirectory))
+            {
+                throw new InvalidOperationException("표시용 KR 월드명 사전 보완 검증에 실패했습니다.");
+            }
+
+            return $"{Name}: 표시용 KR 월드명 사전 보완을 적용했습니다. 기존 원본 백업은 유지됩니다.";
         }
 
         RequireKnownOriginalHash(context);

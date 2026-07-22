@@ -18,6 +18,7 @@ internal static class GlamourerPatchCore
 
         var dependencyDirectories = new[] { outputDirectory, pluginDirectory, hookDirectory };
         PatchKoreanActorValidation(gameDataDll, dependencyDirectories);
+        PatchKoreanWorldDisplay(gameDataDll, dependencyDirectories);
         PatchCreateNewModel(glamourerDll, dependencyDirectories);
         Verify(outputDirectory, hookDirectory);
     }
@@ -45,6 +46,32 @@ internal static class GlamourerPatchCore
         var dependencies = new[] { pluginDirectory, hookDirectory };
         VerifyCreateNewModel(glamourerDll, dependencies);
         VerifyKoreanActorValidation(gameDataDll, dependencies);
+        VerifyKoreanWorldDisplay(gameDataDll, dependencies);
+    }
+
+    public static bool NeedsWorldDisplayUpgrade(string pluginDirectory, string hookDirectory)
+    {
+        try
+        {
+            var glamourerDll = Path.Combine(pluginDirectory, "Glamourer.dll");
+            var gameDataDll = Path.Combine(pluginDirectory, "Penumbra.GameData.dll");
+            var dependencies = new[] { pluginDirectory, hookDirectory };
+            VerifyCreateNewModel(glamourerDll, dependencies);
+            VerifyKoreanActorValidation(gameDataDll, dependencies);
+            return !IsKoreanWorldDisplayPatched(gameDataDll, dependencies);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public static void UpgradeWorldDisplay(string pluginDirectory, string hookDirectory)
+    {
+        var gameDataDll = Path.Combine(pluginDirectory, "Penumbra.GameData.dll");
+        var dependencies = new[] { pluginDirectory, hookDirectory };
+        PatchKoreanWorldDisplay(gameDataDll, dependencies);
+        VerifyKoreanWorldDisplay(gameDataDll, dependencies);
     }
 
     private static void PatchCreateNewModel(string dllPath, string[] dependencyDirectories)
@@ -174,6 +201,83 @@ internal static class GlamourerPatchCore
         {
             throw new InvalidOperationException("Korean actor validation patch is not present.");
         }
+    }
+
+    private static void PatchKoreanWorldDisplay(string dllPath, string[] dependencyDirectories)
+    {
+        using var resolver = CreateResolver(dependencyDirectories);
+        using var assembly = AssemblyDefinition.ReadAssembly(dllPath, CreateReaderParameters(resolver));
+        var module = assembly.MainModule;
+        var tempPath = dllPath + ".krpatch.tmp";
+
+        try
+        {
+            var dictWorld = AllTypes(module.Types)
+                .FirstOrDefault(type => type.FullName == "Penumbra.GameData.DataContainers.DictWorld")
+                ?? throw Unsupported("DictWorld was not found.");
+            var isValid = dictWorld.Methods.FirstOrDefault(method =>
+                method.Name == "IsValid" && method.IsStatic && method.Parameters.Count == 1 &&
+                method.ReturnType.FullName == "System.Boolean")
+                ?? throw Unsupported("DictWorld.IsValid was not found.");
+
+            if (IsKoreanWorldDisplayPatched(isValid))
+                return;
+
+            var upperCaseCheck = isValid.Body.Instructions.FirstOrDefault(instruction =>
+                instruction.OpCode == OpCodes.Call && instruction.Operand is MethodReference method &&
+                method.DeclaringType.FullName == "System.Char" && method.Name == "IsUpper" &&
+                method.Parameters.Count == 1);
+            if (upperCaseCheck == null)
+                throw Unsupported("DictWorld.IsValid upper-case world-name filter was not found.");
+
+            upperCaseCheck.OpCode = OpCodes.Pop;
+            upperCaseCheck.Operand = null;
+            isValid.Body.GetILProcessor().InsertAfter(upperCaseCheck, Instruction.Create(OpCodes.Ldc_I4_1));
+            WriteAssembly(assembly, tempPath, dllPath);
+        }
+        finally
+        {
+            DeleteIfExists(tempPath);
+        }
+    }
+
+    private static void VerifyKoreanWorldDisplay(string dllPath, string[] dependencyDirectories)
+    {
+        using var resolver = CreateResolver(dependencyDirectories);
+        using var assembly = AssemblyDefinition.ReadAssembly(dllPath, CreateReaderParameters(resolver));
+        if (!IsKoreanWorldDisplayPatched(assembly.MainModule))
+            throw new InvalidOperationException("Korean world display patch is not present.");
+    }
+
+    private static bool IsKoreanWorldDisplayPatched(string dllPath, string[] dependencyDirectories)
+    {
+        using var resolver = CreateResolver(dependencyDirectories);
+        using var assembly = AssemblyDefinition.ReadAssembly(dllPath, CreateReaderParameters(resolver));
+        return IsKoreanWorldDisplayPatched(assembly.MainModule);
+    }
+
+    private static bool IsKoreanWorldDisplayPatched(ModuleDefinition module)
+    {
+        var dictWorld = AllTypes(module.Types)
+            .FirstOrDefault(type => type.FullName == "Penumbra.GameData.DataContainers.DictWorld");
+        var isValid = dictWorld?.Methods.FirstOrDefault(method =>
+            method.Name == "IsValid" && method.IsStatic && method.Parameters.Count == 1 &&
+            method.ReturnType.FullName == "System.Boolean");
+        return isValid != null && IsKoreanWorldDisplayPatched(isValid);
+    }
+
+    private static bool IsKoreanWorldDisplayPatched(MethodDefinition isValid)
+    {
+        var instructions = isValid.Body?.Instructions;
+        if (instructions == null || instructions.Any(instruction =>
+                instruction.Operand is MethodReference method && method.DeclaringType.FullName == "System.Char" &&
+                method.Name == "IsUpper"))
+        {
+            return false;
+        }
+
+        return instructions.Zip(instructions.Skip(1), (first, second) =>
+            first.OpCode == OpCodes.Pop && second.OpCode == OpCodes.Ldc_I4_1).Any(pair => pair);
     }
 
     private static bool ReturnsTrue(MethodDefinition method)
