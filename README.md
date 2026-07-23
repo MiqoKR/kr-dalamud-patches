@@ -34,6 +34,10 @@ Glamourer `1.7.0.1`은 격리 복사본에서 KR 패치 적용·검증을 통과
 
 `업데이트 확인`은 GitHub의 최신 Patch Manager 릴리스를 조회합니다. 새 버전을 선택하면 ZIP의 SHA-256을 확인한 뒤 현재 실행 파일을 교체하고 자동으로 다시 시작합니다.
 
+### Lite 배포판
+
+외형 모드용 Lite 배포판은 [kr-dalamud-patches-lite Releases](https://github.com/MiqoKR/kr-dalamud-patches-lite/releases)에서 처음 한 번만 내려받습니다. 일반판과 같은 실행 파일 및 업데이트 채널을 사용하지만, Lite 설치 폴더의 표식으로 `BossModReborn`, `GatherBuddyReborn`은 목록·적용·복원·새 버전 검사에서 보이지 않습니다. 이후 `업데이트 확인`은 이 일반판 저장소의 최신 릴리스를 받아도 Lite 표식이 유지됩니다.
+
 BossModReborn과 GatherBuddyReborn은 `새 버전 검사`를 지원합니다. 이 기능은 공식 CombatReborn 매니페스트의 최신 ZIP을 **임시 폴더에만** 내려받아 기존 패치 로직을 적용·검증하고, 결과·원본 SHA-256·오류를 `%APPDATA%\\XIVLauncherKR\\kr-patch-reports`에 기록합니다. 실제 설치된 플러그인 파일은 검사 과정에서 변경하지 않습니다.
 
 ## 현재 제공 모듈

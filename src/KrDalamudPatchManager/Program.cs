@@ -16,7 +16,7 @@ internal static class Program
     {
         if (args.Length == 2 && args[0] == "--status")
         {
-            foreach (var module in PatchModule.CreateAll())
+            foreach (var module in PatchManagerEdition.VisibleModules())
             {
                 var status = module.GetStatus(args[1]);
                 Console.WriteLine($"{module.Id}\t{status.Version ?? "not-installed"}\t{status.Message}");
@@ -34,7 +34,7 @@ internal static class Program
 
         if (args.Length == 3 && args[0] == "--inspect-pending")
         {
-            var module = PatchModule.CreateAll().FirstOrDefault(candidate => candidate.Id == args[2] && candidate.CanInspectUpdates)
+            var module = PatchManagerEdition.VisibleModules().FirstOrDefault(candidate => candidate.Id == args[2] && candidate.CanInspectUpdates)
                 ?? throw new ArgumentException("새 버전 검사 지원 모듈을 찾지 못했습니다.");
             Console.WriteLine(PendingPatchInspector.Inspect(module, args[1]));
             return 0;
@@ -57,7 +57,7 @@ internal sealed class PatchManagerForm : Form
     private readonly Button browseButton = new();
     private readonly Button updateButton = new();
     private readonly Button inspectUpdateButton = new();
-    private readonly List<PatchModule> modules = PatchModule.CreateAll();
+    private readonly List<PatchModule> modules = PatchManagerEdition.VisibleModules();
     private bool busy;
 
     public PatchManagerForm()
