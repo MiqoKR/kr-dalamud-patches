@@ -306,7 +306,7 @@ internal sealed class PatchManagerForm : Form
         var selected = SelectedModules().Where(module => module.CanInspectUpdates).ToArray();
         if (selected.Length == 0)
         {
-            MessageBox.Show(this, "BossModReborn 또는 GatherBuddyReborn을 선택하세요.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, "새 버전 검사를 지원하는 모듈을 선택하세요.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
@@ -709,6 +709,18 @@ internal sealed class PatchModule
                 {
                     ["Glamourer.dll"] = "BE9484C105846C577AF2C98DEA09CEB670AAFFA16C3CB57BE6F51E4CBDB9BB60",
                     ["Penumbra.GameData.dll"] = "A9BB73AA345245066ED23ED6C8CF95758E4A658FED09432499FEEDF20A258062",
+                },
+            }),
+        new PatchModule(
+            "simpleheels", "Simple Heels KR 안정성", "호환성", "SimpleHeels", new[] { "0.11.1.8" }, new[] { "SimpleHeels.dll" }, "탑승 기울기 fallback · 수영 높이 보정 훅 비활성",
+            SimpleHeelsPatchCore.IsPatched,
+            patchInPlace: SimpleHeelsPatchCore.Patch,
+            officialManifestUrl: "https://raw.githubusercontent.com/Ottermandias/SeaOfStars/main/repo.json",
+            originalHashesByVersion: new Dictionary<string, IReadOnlyDictionary<string, string>>
+            {
+                ["0.11.1.8"] = new Dictionary<string, string>
+                {
+                    ["SimpleHeels.dll"] = "07859D6B9E76542F044BB144BDD4BDD3BAD95C6FF56F7C1F8DCC27280BB0C0BE",
                 },
             }),
         new PatchModule(

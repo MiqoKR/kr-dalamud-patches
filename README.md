@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | 호환성 | Customize+ KR 캐릭터 인식 | 검증 완료 · 첫 릴리스 준비 |
 | 호환성 | Glamourer KR | 조사 예정 |
+| 호환성 | Simple Heels KR 안정성 | 0.11.1.8 격리 검증 완료 |
 | KR 데이터 | BossModReborn KR | 조사 예정 |
 | KR 데이터 | GatherBuddyReborn KR | 조사 예정 |
 
@@ -17,6 +18,7 @@ Patch Manager의 `검증 성공 조건` 열은 단순 파일 존재 여부가 �
 | --- | --- |
 | Customize+ | 한국어 단일 캐릭터명과 KR 월드 ID 인식 |
 | Glamourer | 한국어 캐릭터 조건과 CreateNewModel 호환 |
+| Simple Heels | 탑승 기울기 필드 fallback · CalculateFloatHeight 훅 비활성 |
 | BossModReborn | KR Lumina 시트 호출과 legacy map-effect 참조 제거 |
 | GatherBuddyReborn | 언어 fallback 및 낚시 Regex fallback |
 
@@ -34,11 +36,11 @@ Glamourer `1.7.0.1`은 격리 복사본에서 KR 패치 적용·검증을 통과
 
 `업데이트 확인`은 GitHub의 최신 Patch Manager 릴리스를 조회합니다. 새 버전을 선택하면 ZIP의 SHA-256을 확인한 뒤 현재 실행 파일을 교체하고 자동으로 다시 시작합니다.
 
-BossModReborn과 GatherBuddyReborn은 `새 버전 검사`를 지원합니다. 이 기능은 공식 CombatReborn 매니페스트의 최신 ZIP을 **임시 폴더에만** 내려받아 기존 패치 로직을 적용·검증하고, 결과·원본 SHA-256·오류를 `%APPDATA%\\XIVLauncherKR\\kr-patch-reports`에 기록합니다. 실제 설치된 플러그인 파일은 검사 과정에서 변경하지 않습니다.
+BossModReborn, GatherBuddyReborn, Simple Heels는 `새 버전 검사`를 지원합니다. 이 기능은 각 공식 매니페스트의 최신 ZIP을 **임시 폴더에만** 내려받아 기존 패치 로직을 적용·검증하고, 결과·원본 SHA-256·오류를 `%APPDATA%\\XIVLauncherKR\\kr-patch-reports`에 기록합니다. 실제 설치된 플러그인 파일은 검사 과정에서 변경하지 않습니다.
 
 ## 현재 제공 모듈
 
-`Customize+ KR 캐릭터 인식`은 한국어 단일 캐릭터명과 한국 서버 월드 ID를 Customize+ 프로필에서 인식하도록 보정합니다. Glamourer, BossModReborn, GatherBuddyReborn도 같은 실행 파일에서 독립 항목으로 처리합니다.
+`Customize+ KR 캐릭터 인식`은 한국어 단일 캐릭터명과 한국 서버 월드 ID를 Customize+ 프로필에서 인식하도록 보정합니다. Glamourer, Simple Heels, BossModReborn, GatherBuddyReborn도 같은 실행 파일에서 독립 항목으로 처리합니다.
 
 - 원본 플러그인 파일은 포함하거나 재배포하지 않습니다.
 - 정확히 검증된 Customize+ 버전에만 적용합니다.
