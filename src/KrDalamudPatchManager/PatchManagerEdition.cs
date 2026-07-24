@@ -18,10 +18,12 @@ internal static class PatchManagerEdition
         "gatherbuddyreborn",
     };
 
+    public static bool IsLite => IsLiteInstall();
+
     public static List<PatchModule> VisibleModules()
     {
         var modules = PatchModule.CreateAll();
-        return IsLiteInstall()
+        return IsLite
             ? modules.Where(module => !LiteHiddenModuleIds.Contains(module.Id)).ToList()
             : modules;
     }

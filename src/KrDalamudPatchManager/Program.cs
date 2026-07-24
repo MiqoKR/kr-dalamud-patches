@@ -142,10 +142,13 @@ internal sealed class PatchManagerForm : Form
         updateButton.Click += async (_, _) => await CheckForUpdateAsync();
         Controls.Add(updateButton);
 
-        inspectUpdateButton.Text = "새 버전 검사";
-        inspectUpdateButton.SetBounds(610, 398, 130, 34);
-        inspectUpdateButton.Click += async (_, _) => await InspectSelectedUpdatesAsync();
-        Controls.Add(inspectUpdateButton);
+        if (!PatchManagerEdition.IsLite)
+        {
+            inspectUpdateButton.Text = "새 버전 검사";
+            inspectUpdateButton.SetBounds(610, 398, 130, 34);
+            inspectUpdateButton.Click += async (_, _) => await InspectSelectedUpdatesAsync();
+            Controls.Add(inspectUpdateButton);
+        }
 
         Controls.Add(new Label
         {
