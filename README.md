@@ -9,7 +9,7 @@
 | 호환성 | Customize+ KR 캐릭터 인식 | 검증 완료 · 첫 릴리스 준비 |
 | 호환성 | Glamourer KR | 조사 예정 |
 | 호환성 | Simple Heels KR 안정성 | 0.11.1.8 격리 검증 완료 |
-| KR 데이터 | BossModReborn KR | 조사 예정 |
+| KR 데이터 | BossModReborn KR | 7.5.1.35 격리 검증 완료 |
 | KR 데이터 | GatherBuddyReborn KR | 조사 예정 |
 
 Patch Manager의 `검증 성공 조건` 열은 단순 파일 존재 여부가 아니라, 각 모듈이 실제로 검사한 패치 효과를 표시합니다.
