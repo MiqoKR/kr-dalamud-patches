@@ -165,6 +165,7 @@ internal static class GlamourerPatchCore
                 method.Name == "VerifyWorld" && method.Parameters.Count == 1 && method.ReturnType.FullName == "System.Boolean")
                 ?? throw Unsupported("VerifyWorld was not found.");
             RewriteReturnTrue(verifyWorld);
+            RewritePlayerObjectCreation(factory, module);
             WriteAssembly(assembly, tempPath, dllPath);
         }
         finally
@@ -212,7 +213,72 @@ internal static class GlamourerPatchCore
         {
             throw new InvalidOperationException("Korean actor validation patch is not present.");
         }
+
+        var createPlayerFromObject = factory.Methods.SingleOrDefault(method =>
+            method.Name == "CreatePlayerFromObject" && method.Parameters.Count == 2 &&
+            method.ReturnType.FullName == "Penumbra.GameData.Actors.ActorIdentifier")
+            ?? throw Unsupported("CreatePlayerFromObject was not found during verification.");
+        if (!IsPlayerObjectCreationPatched(createPlayerFromObject))
+        {
+            throw new InvalidOperationException("Korean player object actor creation patch is not present.");
+        }
     }
+
+    private static void RewritePlayerObjectCreation(TypeDefinition factory, ModuleDefinition module)
+    {
+        var createPlayerFromObject = factory.Methods.SingleOrDefault(method =>
+            method.Name == "CreatePlayerFromObject" && method.Parameters.Count == 2 &&
+            method.ReturnType.FullName == "Penumbra.GameData.Actors.ActorIdentifier")
+            ?? throw Unsupported("CreatePlayerFromObject was not found.");
+        if (IsPlayerObjectCreationPatched(createPlayerFromObject))
+            return;
+
+        var getName = createPlayerFromObject.Body.Instructions.Select(instruction => instruction.Operand)
+            .OfType<MethodReference>().FirstOrDefault(method => method.Name == "get_Utf8Name")
+            ?? throw Unsupported("Actor.get_Utf8Name was not found.");
+        var getHomeWorld = createPlayerFromObject.Body.Instructions.Select(instruction => instruction.Operand)
+            .OfType<MethodReference>().FirstOrDefault(method => method.Name == "get_HomeWorld")
+            ?? throw Unsupported("Actor.get_HomeWorld was not found.");
+        var createUnchecked = factory.Methods.SingleOrDefault(method =>
+            method.Name == "CreateIndividualUnchecked" && method.Parameters.Count == 5 &&
+            method.ReturnType.FullName == "Penumbra.GameData.Actors.ActorIdentifier")
+            ?? throw Unsupported("CreateIndividualUnchecked was not found.");
+        var npcIdImplicit = factory.Methods.FirstOrDefault(method => method.Name == "CreatePlayer" && method.Parameters.Count == 2)
+            ?.Body.Instructions.Select(instruction => instruction.Operand).OfType<MethodReference>()
+            .FirstOrDefault(method => method.Name == "op_Implicit" && method.DeclaringType.FullName == "Penumbra.GameData.Structs.NpcId")
+            ?? throw Unsupported("NpcId implicit conversion was not found.");
+
+        var body = createPlayerFromObject.Body;
+        body.ExceptionHandlers.Clear();
+        body.Variables.Clear();
+        body.Variables.Add(new VariableDefinition(module.ImportReference(getName.ReturnType)));
+        body.Variables.Add(new VariableDefinition(module.ImportReference(getHomeWorld.ReturnType)));
+        body.InitLocals = true;
+        body.Instructions.Clear();
+        var processor = body.GetILProcessor();
+        var actor = createPlayerFromObject.Parameters[0];
+        processor.Append(processor.Create(OpCodes.Ldarga, actor));
+        processor.Append(processor.Create(OpCodes.Call, module.ImportReference(getName)));
+        processor.Append(processor.Create(OpCodes.Stloc_0));
+        processor.Append(processor.Create(OpCodes.Ldarga, actor));
+        processor.Append(processor.Create(OpCodes.Call, module.ImportReference(getHomeWorld)));
+        processor.Append(processor.Create(OpCodes.Stloc_1));
+        processor.Append(processor.Create(OpCodes.Ldarg_0));
+        processor.Append(processor.Create(OpCodes.Ldc_I4_1));
+        processor.Append(processor.Create(OpCodes.Ldloc_0));
+        processor.Append(processor.Create(OpCodes.Ldloc_1));
+        processor.Append(processor.Create(OpCodes.Ldc_I4_1));
+        processor.Append(processor.Create(OpCodes.Ldc_I4_M1));
+        processor.Append(processor.Create(OpCodes.Call, module.ImportReference(npcIdImplicit)));
+        processor.Append(processor.Create(OpCodes.Call, module.ImportReference(createUnchecked)));
+        processor.Append(processor.Create(OpCodes.Ret));
+    }
+
+    private static bool IsPlayerObjectCreationPatched(MethodDefinition method)
+        => method.HasBody && method.Body.Instructions.Any(instruction =>
+               instruction.Operand is MethodReference reference && reference.Name == "CreateIndividualUnchecked") &&
+           !method.Body.Instructions.Any(instruction =>
+               instruction.Operand is MethodReference reference && reference.Name == "CreatePlayer");
 
     private static void PatchKoreanWorldDisplay(string dllPath, string[] dependencyDirectories)
     {
