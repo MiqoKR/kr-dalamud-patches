@@ -306,8 +306,11 @@ internal static class GlamourerPatchCore
         var nameDicts = AllTypes(module.Types)
             .FirstOrDefault(type => type.FullName == "Penumbra.GameData.Data.NameDicts")
             ?? throw Unsupported("NameDicts was not found.");
-        if (IsKoreanWorldNameFallbackPatched(nameDicts))
-            return false;
+        var existingFallback = nameDicts.Methods.FirstOrDefault(method =>
+            method.Name == "GetKoreanWorldNameFallback" && method.IsStatic && method.Parameters.Count == 1 &&
+            method.ReturnType.FullName == "System.String");
+        if (existingFallback != null)
+            return PatchKoreanDefaultWorldFallback(existingFallback);
 
         var toWorldName = nameDicts.Methods.FirstOrDefault(method =>
             method.Name == "ToWorldName" && method.Parameters.Count == 1 && method.ReturnType.FullName == "System.String")
@@ -336,7 +339,7 @@ internal static class GlamourerPatchCore
             il.Append(il.Create(OpCodes.Beq, labels[i]));
         }
 
-        il.Append(il.Create(OpCodes.Ldstr, "Invalid"));
+        il.Append(il.Create(OpCodes.Ldstr, "KR"));
         il.Append(il.Create(OpCodes.Ret));
         for (var i = 0; i < KoreanWorldNames.Length; ++i)
         {
@@ -373,8 +376,21 @@ internal static class GlamourerPatchCore
         return fallback != null && toWorldName?.Body?.Instructions.Any(instruction =>
             instruction.Operand is MethodReference method && method.Name == fallback.Name &&
             method.DeclaringType.FullName == nameDicts.FullName) == true &&
+            fallback.Body.Instructions.Any(instruction =>
+                instruction.OpCode == OpCodes.Ldstr && string.Equals(instruction.Operand as string, "KR", StringComparison.Ordinal)) &&
             KoreanWorldNames.All(world => fallback.Body.Instructions.Any(instruction =>
                 instruction.OpCode == OpCodes.Ldstr && string.Equals(instruction.Operand as string, world.Name, StringComparison.Ordinal)));
+    }
+
+    private static bool PatchKoreanDefaultWorldFallback(MethodDefinition fallback)
+    {
+        var invalidFallback = fallback.Body.Instructions.SingleOrDefault(instruction =>
+            instruction.OpCode == OpCodes.Ldstr && string.Equals(instruction.Operand as string, "Invalid", StringComparison.Ordinal));
+        if (invalidFallback == null)
+            return false;
+
+        invalidFallback.Operand = "KR";
+        return true;
     }
 
     private static bool ReturnsTrue(MethodDefinition method)
