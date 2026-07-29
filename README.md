@@ -7,10 +7,10 @@
 | 분류 | 모듈 | 상태 |
 | --- | --- | --- |
 | 호환성 | Customize+ KR 캐릭터 인식 | 검증 완료 · 첫 릴리스 준비 |
-| 호환성 | Glamourer KR | 조사 예정 |
+| 호환성 | Glamourer KR | 1.7.0.1 Actors 복구 검증 완료 |
 | 호환성 | Simple Heels KR 안정성 | 0.11.1.8 격리 검증 완료 |
-| KR 데이터 | BossModReborn KR | 7.5.1.35 격리 검증 완료 |
-| KR 데이터 | GatherBuddyReborn KR | 조사 예정 |
+| KR 데이터 | BossModReborn KR | 7.5.5.2 격리 검증 완료 |
+| KR 데이터 | GatherBuddyReborn KR | 7.5.5.0 격리 검증 완료 |
 
 Patch Manager의 `검증 성공 조건` 열은 단순 파일 존재 여부가 아니라, 각 모듈이 실제로 검사한 패치 효과를 표시합니다.
 
@@ -22,7 +22,7 @@ Patch Manager의 `검증 성공 조건` 열은 단순 파일 존재 여부가 �
 | BossModReborn | KR Lumina 시트 호출과 legacy map-effect 참조 제거 |
 | GatherBuddyReborn | 언어 fallback 및 낚시 Regex fallback |
 
-Glamourer `1.7.0.1`은 격리 복사본에서 KR 패치 적용·검증을 통과했고, 원본 `Glamourer.dll`과 `Penumbra.GameData.dll`의 SHA-256을 고정한 지원 버전입니다.
+Glamourer `1.7.0.1`은 격리 복사본에서 KR 패치 적용·검증을 통과했습니다. 한국 런타임에서 `IsLoggedIn`이 false로 보고되는 경우에도 유효한 Player와 KR 월드 ID가 있으면 Actor 수집을 이어가도록 보정합니다. 원본 `Glamourer.dll`과 `Penumbra.GameData.dll`의 SHA-256을 고정한 지원 버전입니다.
 
 ## Patch Manager 사용
 

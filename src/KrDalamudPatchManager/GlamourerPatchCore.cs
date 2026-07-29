@@ -27,11 +27,13 @@ internal static class GlamourerPatchCore
         RequireFile(glamourerDll);
         RequireFile(gameDataDll);
 
-        var dependencyDirectories = new[] { outputDirectory, pluginDirectory, hookDirectory };
+        var compatibleHookDirectory = ResolveCompatibleHookDirectory(gameDataDll, hookDirectory);
+        var dependencyDirectories = new[] { outputDirectory, pluginDirectory, compatibleHookDirectory };
         PatchKoreanActorValidation(gameDataDll, dependencyDirectories);
+        PatchLoggedInLobbyFallback(gameDataDll, dependencyDirectories);
         PatchKoreanWorldDisplay(gameDataDll, dependencyDirectories);
         PatchCreateNewModel(glamourerDll, dependencyDirectories);
-        Verify(outputDirectory, hookDirectory);
+        Verify(outputDirectory, compatibleHookDirectory);
     }
 
     public static bool IsPatched(string pluginDirectory, string hookDirectory)
@@ -54,9 +56,11 @@ internal static class GlamourerPatchCore
         RequireFile(glamourerDll);
         RequireFile(gameDataDll);
 
-        var dependencies = new[] { pluginDirectory, hookDirectory };
+        var compatibleHookDirectory = ResolveCompatibleHookDirectory(gameDataDll, hookDirectory);
+        var dependencies = new[] { pluginDirectory, compatibleHookDirectory };
         VerifyCreateNewModel(glamourerDll, dependencies);
         VerifyKoreanActorValidation(gameDataDll, dependencies);
+        VerifyLoggedInLobbyFallback(gameDataDll, dependencies);
         VerifyKoreanWorldDisplay(gameDataDll, dependencies);
     }
 
@@ -66,9 +70,11 @@ internal static class GlamourerPatchCore
         {
             var glamourerDll = Path.Combine(pluginDirectory, "Glamourer.dll");
             var gameDataDll = Path.Combine(pluginDirectory, "Penumbra.GameData.dll");
-            var dependencies = new[] { pluginDirectory, hookDirectory };
+            var compatibleHookDirectory = ResolveCompatibleHookDirectory(gameDataDll, hookDirectory);
+            var dependencies = new[] { pluginDirectory, compatibleHookDirectory };
             VerifyCreateNewModel(glamourerDll, dependencies);
             return !IsKoreanActorValidationPatched(gameDataDll, dependencies)
+                || !IsLoggedInLobbyFallbackPatched(gameDataDll, dependencies)
                 || !IsKoreanWorldDisplayPatched(gameDataDll, dependencies);
         }
         catch
@@ -80,11 +86,148 @@ internal static class GlamourerPatchCore
     public static void UpgradeWorldDisplay(string pluginDirectory, string hookDirectory)
     {
         var gameDataDll = Path.Combine(pluginDirectory, "Penumbra.GameData.dll");
-        var dependencies = new[] { pluginDirectory, hookDirectory };
+        var compatibleHookDirectory = ResolveCompatibleHookDirectory(gameDataDll, hookDirectory);
+        var dependencies = new[] { pluginDirectory, compatibleHookDirectory };
         PatchKoreanActorValidation(gameDataDll, dependencies);
+        PatchLoggedInLobbyFallback(gameDataDll, dependencies);
         PatchKoreanWorldDisplay(gameDataDll, dependencies);
         VerifyKoreanActorValidation(gameDataDll, dependencies);
+        VerifyLoggedInLobbyFallback(gameDataDll, dependencies);
         VerifyKoreanWorldDisplay(gameDataDll, dependencies);
+    }
+
+    // KR Dalamud can report AgentLobby.IsLoggedIn as false after entering the game.
+    // When a valid object-table player with a home world exists, this cannot be the character-select lobby.
+    private static void PatchLoggedInLobbyFallback(string dllPath, string[] dependencyDirectories)
+    {
+        using var resolver = CreateResolver(dependencyDirectories);
+        using var assembly = AssemblyDefinition.ReadAssembly(dllPath, CreateReaderParameters(resolver));
+        var module = assembly.MainModule;
+        var tempPath = dllPath + ".krpatch.tmp";
+
+        try
+        {
+            var actorObjectManager = AllTypes(module.Types)
+                .FirstOrDefault(type => type.FullName == "Penumbra.GameData.Interop.ActorObjectManager")
+                ?? throw Unsupported("ActorObjectManager was not found for the lobby fallback.");
+            var addLobbyCharacters = actorObjectManager.Methods.FirstOrDefault(method => method.Name == "AddLobbyCharacters" && method.Parameters.Count == 0)
+                ?? throw Unsupported("ActorObjectManager.AddLobbyCharacters was not found for the lobby fallback.");
+            var loginFalseBranch = FindLobbyLoginFalseBranch(addLobbyCharacters);
+            var existingFallbackStart = FindLobbyFallbackStart(addLobbyCharacters);
+            if (existingFallbackStart != null)
+            {
+                if (ReferenceEquals(loginFalseBranch.Operand, existingFallbackStart))
+                    return;
+
+                loginFalseBranch.Operand = existingFallbackStart;
+                WriteAssembly(assembly, tempPath, dllPath);
+                return;
+            }
+
+            var player = actorObjectManager.Properties.FirstOrDefault(property => property.Name == "Player")?.GetMethod
+                ?? throw Unsupported("ActorObjectManager.Player was not found for the lobby fallback.");
+            var actor = player.ReturnType.Resolve()
+                ?? throw Unsupported("Actor type could not be resolved for the lobby fallback.");
+            var valid = actor.Properties.FirstOrDefault(property => property.Name == "Valid")?.GetMethod
+                ?? throw Unsupported("Actor.Valid was not found for the lobby fallback.");
+            var homeWorld = actor.Properties.FirstOrDefault(property => property.Name == "HomeWorld")?.GetMethod
+                ?? throw Unsupported("Actor.HomeWorld was not found for the lobby fallback.");
+            var lobbyTarget = (Instruction)loginFalseBranch.Operand;
+
+            var playerLocal = new VariableDefinition(module.ImportReference(player.ReturnType));
+            addLobbyCharacters.Body.Variables.Add(playerLocal);
+            addLobbyCharacters.Body.InitLocals = true;
+            var importedPlayer = module.ImportReference(player);
+            var importedValid = module.ImportReference(valid);
+            var importedHomeWorld = module.ImportReference(homeWorld);
+            var il = addLobbyCharacters.Body.GetILProcessor();
+            var instructions = new[]
+            {
+                il.Create(OpCodes.Ldarg_0),
+                il.Create(OpCodes.Call, importedPlayer),
+                il.Create(OpCodes.Stloc, playerLocal),
+                il.Create(OpCodes.Ldloca, playerLocal),
+                il.Create(OpCodes.Call, importedValid),
+                il.Create(OpCodes.Brfalse, lobbyTarget),
+                il.Create(OpCodes.Ldloca, playerLocal),
+                il.Create(OpCodes.Call, importedHomeWorld),
+                il.Create(OpCodes.Brfalse, lobbyTarget),
+                il.Create(OpCodes.Ldc_I4_0),
+                il.Create(OpCodes.Ret),
+            };
+            foreach (var instruction in instructions)
+                il.InsertBefore(lobbyTarget, instruction);
+            // The original false branch still targets the pre-existing lobby path.
+            // Redirect it through this fallback first; invalid/no-world actors then branch back to that path.
+            loginFalseBranch.Operand = instructions[0];
+
+            WriteAssembly(assembly, tempPath, dllPath);
+        }
+        finally
+        {
+            DeleteIfExists(tempPath);
+        }
+    }
+
+    private static void VerifyLoggedInLobbyFallback(string dllPath, string[] dependencyDirectories)
+    {
+        using var resolver = CreateResolver(dependencyDirectories);
+        using var assembly = AssemblyDefinition.ReadAssembly(dllPath, CreateReaderParameters(resolver));
+        var addLobbyCharacters = AllTypes(assembly.MainModule.Types)
+            .FirstOrDefault(type => type.FullName == "Penumbra.GameData.Interop.ActorObjectManager")?.Methods
+            .FirstOrDefault(method => method.Name == "AddLobbyCharacters" && method.Parameters.Count == 0)
+            ?? throw Unsupported("ActorObjectManager.AddLobbyCharacters was not found during lobby fallback verification.");
+        if (!HasLoggedInLobbyFallback(addLobbyCharacters))
+            throw new InvalidOperationException("Glamourer logged-in lobby fallback is not present.");
+    }
+
+    private static bool IsLoggedInLobbyFallbackPatched(string dllPath, string[] dependencyDirectories)
+    {
+        using var resolver = CreateResolver(dependencyDirectories);
+        using var assembly = AssemblyDefinition.ReadAssembly(dllPath, CreateReaderParameters(resolver));
+        var method = AllTypes(assembly.MainModule.Types)
+            .FirstOrDefault(type => type.FullName == "Penumbra.GameData.Interop.ActorObjectManager")?.Methods
+            .FirstOrDefault(candidate => candidate.Name == "AddLobbyCharacters" && candidate.Parameters.Count == 0);
+        return method != null && HasLoggedInLobbyFallback(method);
+    }
+
+    private static bool HasLoggedInLobbyFallback(MethodDefinition method)
+    {
+        var fallbackStart = FindLobbyFallbackStart(method);
+        return fallbackStart != null &&
+               ReferenceEquals(FindLobbyLoginFalseBranch(method).Operand, fallbackStart);
+    }
+
+    private static Instruction FindLobbyLoginFalseBranch(MethodDefinition method)
+    {
+        var loginCheckIndex = method.Body.Instructions
+            .Select((instruction, index) => (instruction, index))
+            .Where(pair => pair.instruction.Operand is MethodReference reference && reference.Name == "get_IsLoggedIn")
+            .Select(pair => pair.index)
+            .DefaultIfEmpty(-1)
+            .First();
+        if (loginCheckIndex < 0)
+            throw Unsupported("ActorObjectManager lobby login check was not found.");
+        return method.Body.Instructions.Skip(loginCheckIndex + 1).FirstOrDefault(instruction =>
+                   instruction.OpCode.Code is Code.Brfalse or Code.Brfalse_S && instruction.Operand is Instruction)
+               ?? throw Unsupported("ActorObjectManager lobby login check was not found.");
+    }
+
+    private static Instruction? FindLobbyFallbackStart(MethodDefinition method)
+    {
+        var instructions = method.Body.Instructions;
+        for (var index = 0; index < instructions.Count; ++index)
+        {
+            if (instructions[index].Operand is not MethodReference { Name: "get_Player" })
+                continue;
+            if (!instructions.Skip(index + 1).Take(12).Any(instruction => instruction.Operand is MethodReference { Name: "get_HomeWorld" }))
+                continue;
+            if (instructions[index].Previous?.OpCode != OpCodes.Ldarg_0)
+                throw Unsupported("ActorObjectManager existing lobby fallback has an unsupported shape.");
+            return instructions[index].Previous;
+        }
+
+        return null;
     }
 
     private static void PatchCreateNewModel(string dllPath, string[] dependencyDirectories)
@@ -167,8 +310,6 @@ internal static class GlamourerPatchCore
                 method.Name == "VerifyWorld" && method.Parameters.Count == 1 && method.ReturnType.FullName == "System.Boolean")
                 ?? throw Unsupported("VerifyWorld was not found.");
             RewriteReturnTrue(verifyWorld);
-            RewritePlayerCreation(factory, module);
-            RewritePlayerObjectCreation(factory, module);
             WriteAssembly(assembly, tempPath, dllPath);
         }
         finally
@@ -218,9 +359,7 @@ internal static class GlamourerPatchCore
         }
 
         if (!IsKoreanActorValidationPatched(assembly.MainModule))
-        {
             throw new InvalidOperationException("Korean actor validation patch is not present.");
-        }
     }
 
     private static bool IsKoreanActorValidationPatched(string dllPath, string[] dependencyDirectories)
@@ -244,109 +383,8 @@ internal static class GlamourerPatchCore
         if (methods.Length < 3 || methods.Any(method => !ReturnsTrue(method)))
             return false;
 
-        var createPlayerFromObject = factory.Methods.SingleOrDefault(method =>
-            method.Name == "CreatePlayerFromObject" && method.Parameters.Count == 2 &&
-            method.ReturnType.FullName == "Penumbra.GameData.Actors.ActorIdentifier");
-        if (createPlayerFromObject == null)
-            return false;
-        var createPlayer = factory.Methods.SingleOrDefault(method =>
-            method.Name == "CreatePlayer" && method.Parameters.Count == 2 &&
-            method.ReturnType.FullName == "Penumbra.GameData.Actors.ActorIdentifier");
-        return createPlayer != null && IsPlayerCreationPatched(createPlayer) && IsPlayerObjectCreationPatched(createPlayerFromObject);
+        return true;
     }
-
-    private static void RewritePlayerCreation(TypeDefinition factory, ModuleDefinition module)
-    {
-        var createPlayer = factory.Methods.SingleOrDefault(method =>
-            method.Name == "CreatePlayer" && method.Parameters.Count == 2 &&
-            method.ReturnType.FullName == "Penumbra.GameData.Actors.ActorIdentifier")
-            ?? throw Unsupported("CreatePlayer was not found.");
-        if (IsPlayerCreationPatched(createPlayer))
-            return;
-
-        var playerConstructor = createPlayer.Body.Instructions.Select(instruction => instruction.Operand)
-            .OfType<MethodReference>().FirstOrDefault(method => method.Name == ".ctor" &&
-                method.DeclaringType.FullName == "Penumbra.GameData.Actors.ActorIdentifier" && method.Parameters.Count == 5 &&
-                method.Parameters[2].ParameterType.FullName == "Penumbra.GameData.Structs.WorldId")
-            ?? throw Unsupported("Player ActorIdentifier constructor was not found.");
-        var npcIdImplicit = createPlayer.Body.Instructions.Select(instruction => instruction.Operand)
-            .OfType<MethodReference>().FirstOrDefault(method => method.Name == "op_Implicit" &&
-                method.DeclaringType.FullName == "Penumbra.GameData.Structs.NpcId" && method.Parameters.Count == 1)
-            ?? throw Unsupported("NpcId implicit conversion was not found.");
-
-        var body = createPlayer.Body;
-        body.ExceptionHandlers.Clear();
-        body.Variables.Clear();
-        body.InitLocals = false;
-        body.Instructions.Clear();
-        var processor = body.GetILProcessor();
-        processor.Append(processor.Create(OpCodes.Ldc_I4_1));
-        processor.Append(processor.Create(OpCodes.Ldc_I4_1));
-        processor.Append(processor.Create(OpCodes.Ldarg_2));
-        processor.Append(processor.Create(OpCodes.Ldc_I4_0));
-        processor.Append(processor.Create(OpCodes.Call, module.ImportReference(npcIdImplicit)));
-        processor.Append(processor.Create(OpCodes.Ldarg_1));
-        processor.Append(processor.Create(OpCodes.Newobj, module.ImportReference(playerConstructor)));
-        processor.Append(processor.Create(OpCodes.Ret));
-    }
-
-    private static void RewritePlayerObjectCreation(TypeDefinition factory, ModuleDefinition module)
-    {
-        var createPlayerFromObject = factory.Methods.SingleOrDefault(method =>
-            method.Name == "CreatePlayerFromObject" && method.Parameters.Count == 2 &&
-            method.ReturnType.FullName == "Penumbra.GameData.Actors.ActorIdentifier")
-            ?? throw Unsupported("CreatePlayerFromObject was not found.");
-        if (IsPlayerObjectCreationPatched(createPlayerFromObject))
-            return;
-
-        var getName = createPlayerFromObject.Body.Instructions.Select(instruction => instruction.Operand)
-            .OfType<MethodReference>().FirstOrDefault(method => method.Name == "get_Utf8Name")
-            ?? throw Unsupported("Actor.get_Utf8Name was not found.");
-        var getHomeWorld = createPlayerFromObject.Body.Instructions.Select(instruction => instruction.Operand)
-            .OfType<MethodReference>().FirstOrDefault(method => method.Name == "get_HomeWorld")
-            ?? throw Unsupported("Actor.get_HomeWorld was not found.");
-        var createPlayer = factory.Methods.SingleOrDefault(method =>
-            method.Name == "CreatePlayer" && method.Parameters.Count == 2 &&
-            method.ReturnType.FullName == "Penumbra.GameData.Actors.ActorIdentifier")
-            ?? throw Unsupported("CreatePlayer was not found.");
-        var worldId = AllTypes(module.Types).FirstOrDefault(type => type.FullName == "Penumbra.GameData.Structs.WorldId")
-            ?? throw Unsupported("WorldId was not found.");
-        var worldIdImplicit = worldId.Methods.FirstOrDefault(method => method.Name == "op_Implicit" &&
-            method.Parameters.Count == 1 && method.Parameters[0].ParameterType.FullName == "System.UInt16" &&
-            method.ReturnType.FullName == worldId.FullName)
-            ?? throw Unsupported("WorldId implicit conversion was not found.");
-
-        var body = createPlayerFromObject.Body;
-        body.ExceptionHandlers.Clear();
-        body.Variables.Clear();
-        body.InitLocals = false;
-        body.Instructions.Clear();
-        var processor = body.GetILProcessor();
-        var actor = createPlayerFromObject.Parameters[0];
-        processor.Append(processor.Create(OpCodes.Ldarg_0));
-        processor.Append(processor.Create(OpCodes.Ldarga, actor));
-        processor.Append(processor.Create(OpCodes.Call, module.ImportReference(getName)));
-        processor.Append(processor.Create(OpCodes.Ldarga, actor));
-        processor.Append(processor.Create(OpCodes.Call, module.ImportReference(getHomeWorld)));
-        processor.Append(processor.Create(OpCodes.Call, module.ImportReference(worldIdImplicit)));
-        processor.Append(processor.Create(OpCodes.Call, module.ImportReference(createPlayer)));
-        processor.Append(processor.Create(OpCodes.Ret));
-    }
-
-    private static bool IsPlayerObjectCreationPatched(MethodDefinition method)
-        => method.HasBody && method.Body.Instructions.Any(instruction =>
-               instruction.Operand is MethodReference reference && reference.Name == "CreatePlayer") &&
-           !method.Body.Instructions.Any(instruction =>
-               instruction.Operand is MethodReference reference && reference.Name == "CreateIndividualUnchecked");
-
-    private static bool IsPlayerCreationPatched(MethodDefinition method)
-        => method.HasBody &&
-           !method.Body.Instructions.Any(instruction => instruction.Operand is MethodReference reference &&
-               reference.DeclaringType.FullName == "Penumbra.GameData.Actors.ActorIdentifierFactory" &&
-               (reference.Name == "VerifyWorld" || reference.Name == "VerifyPlayerName")) &&
-           method.Body.Instructions.Any(instruction => instruction.OpCode == OpCodes.Newobj &&
-               instruction.Operand is MethodReference reference && reference.DeclaringType.FullName == "Penumbra.GameData.Actors.ActorIdentifier" &&
-               reference.Parameters.Count == 5 && reference.Parameters[2].ParameterType.FullName == "Penumbra.GameData.Structs.WorldId");
 
     private static void PatchKoreanWorldDisplay(string dllPath, string[] dependencyDirectories)
     {
@@ -626,6 +664,28 @@ internal static class GlamourerPatchCore
         var reference = new MethodReference("op_Implicit", modelType, modelType) { HasThis = false };
         reference.Parameters.Add(new ParameterDefinition(characterBasePointer));
         return module.ImportReference(reference);
+    }
+
+    private static string ResolveCompatibleHookDirectory(string gameDataDll, string requestedHookDirectory)
+    {
+        using var assembly = AssemblyDefinition.ReadAssembly(gameDataDll);
+        var dalamudReference = assembly.MainModule.AssemblyReferences.FirstOrDefault(reference =>
+            reference.Name.Equals("Dalamud", StringComparison.OrdinalIgnoreCase));
+        if (dalamudReference?.Version == null)
+        {
+            return requestedHookDirectory;
+        }
+
+        var hooksRoot = Directory.GetParent(requestedHookDirectory)?.FullName;
+        if (string.IsNullOrEmpty(hooksRoot))
+        {
+            return requestedHookDirectory;
+        }
+
+        var compatibleDirectory = Path.Combine(hooksRoot, dalamudReference.Version.ToString());
+        return File.Exists(Path.Combine(compatibleDirectory, "Dalamud.dll"))
+            ? compatibleDirectory
+            : requestedHookDirectory;
     }
 
     private static DefaultAssemblyResolver CreateResolver(IEnumerable<string> searchDirectories)

@@ -724,7 +724,7 @@ internal sealed class PatchModule
                 },
             }),
         new PatchModule(
-            "bossmodreborn", "BossModReborn KR 데이터", "KR 데이터", "BossModReborn", new[] { "7.5.1.26", "7.5.1.29", "7.5.1.32", "7.5.1.35", "7.5.5.0" }, new[] { "BossModReborn.dll" }, "KR Lumina 시트 · legacy map-effect 제거",
+            "bossmodreborn", "BossModReborn KR 데이터", "KR 데이터", "BossModReborn", new[] { "7.5.1.26", "7.5.1.29", "7.5.1.32", "7.5.1.35", "7.5.5.0", "7.5.5.2" }, new[] { "BossModReborn.dll" }, "KR Lumina 시트 · legacy map-effect 제거",
             BossModPatchCore.IsPatched,
             patchInPlace: BossModPatchCore.Patch,
             officialManifestUrl: "https://raw.githubusercontent.com/FFXIV-CombatReborn/CombatRebornRepo/main/pluginmaster.json",
@@ -734,9 +734,10 @@ internal sealed class PatchModule
                 ["7.5.1.32"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "444938A28E3D699F142F265CD55A87F2CB2C16E4635984A7478AC5CF8D257522" },
                 ["7.5.1.35"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "718049F61ED426CC0C07D58A87801C3A8CA1B23411B4A31063517362FBFA0599" },
                 ["7.5.5.0"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "3B0D2B282927E51454B932DDB99DF136C25BB9578DD3A204DFBD77CFB99A6B52" },
+                ["7.5.5.2"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "FB05BB5210CDC4CCC29F70FA39A24862621C4EC15C04DD2ED7A5FEE3B198B27B" },
             }),
         new PatchModule(
-            "gatherbuddyreborn", "GatherBuddyReborn KR 데이터", "KR 데이터", "GatherBuddyReborn", new[] { "7.5.1.0", "7.5.1.1" }, new[] { "GatherBuddy.GameData.dll", "GatherBuddyReborn.dll" }, "언어 fallback · 낚시 Regex fallback",
+            "gatherbuddyreborn", "GatherBuddyReborn KR 데이터", "KR 데이터", "GatherBuddyReborn", new[] { "7.5.1.0", "7.5.1.1", "7.5.5.0" }, new[] { "GatherBuddy.GameData.dll", "GatherBuddyReborn.dll" }, "언어 fallback · 낚시 Regex fallback",
             GatherBuddyPatchCore.IsPatched,
             (source, hook, output) => GatherBuddyPatchCore.Patch(source, output, hook),
             officialManifestUrl: "https://raw.githubusercontent.com/FFXIV-CombatReborn/CombatRebornRepo/main/pluginmaster.json",
@@ -746,6 +747,11 @@ internal sealed class PatchModule
                 {
                     ["GatherBuddy.GameData.dll"] = "D8C8AC73285F2D2A9D2B3B17ACACFA07BF08E634B2703F0D8E081E5E83C4E3C2",
                     ["GatherBuddyReborn.dll"] = "F6609A3E47FD0D37BFF31E64F27773C18EC07E59F0367CC969D603984434481B",
+                },
+                ["7.5.5.0"] = new Dictionary<string, string>
+                {
+                    ["GatherBuddy.GameData.dll"] = "EDFA515789D00892210A5BB4F1D4BD9A31488B59604FA8406C3A1039378A70B5",
+                    ["GatherBuddyReborn.dll"] = "3B4334885D7F0419414620C7AC47A87E9A874AB45FC04851A09271D3F267D7F0",
                 },
             }),
     };
