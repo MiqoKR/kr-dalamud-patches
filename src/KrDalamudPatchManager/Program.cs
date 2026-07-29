@@ -799,7 +799,6 @@ internal sealed class PatchModule
                 throw new InvalidOperationException($"{Name}: 기존 패치의 원본 백업을 찾지 못했습니다. 먼저 복원 후 다시 적용해 주세요.");
             }
 
-            EnsureSharedGlamourerBackup(context);
             upgradeInPlace(context.PluginDirectory, context.HookDirectory);
             if (!verify(context.PluginDirectory, context.HookDirectory))
             {
@@ -836,11 +835,6 @@ internal sealed class PatchModule
                 throw new InvalidOperationException("패치 모듈 구현을 찾지 못했습니다.");
             }
 
-            if (Id == "glamourer")
-            {
-                GlamourerPatchCore.PatchSharedGameData(context.PluginDirectory, context.HookDirectory);
-            }
-
             if (!verify(context.PluginDirectory, context.HookDirectory))
             {
                 throw new InvalidOperationException("적용 후 검증에 실패했습니다. 백업에서 복원하세요.");
@@ -852,7 +846,6 @@ internal sealed class PatchModule
         catch
         {
             CopyFiles(backup, context.PluginDirectory, Files);
-            RestoreSharedGlamourerFile(context, backup);
             throw;
         }
     }
@@ -880,7 +873,6 @@ internal sealed class PatchModule
         }
 
         CopyFiles(backup, context.PluginDirectory, Files);
-        RestoreSharedGlamourerFile(context, backup);
         File.Delete(markerPath);
         var managerMarker = Path.Combine(context.PluginDirectory, ManagerMarker);
         if (!managerMarker.Equals(markerPath, StringComparison.OrdinalIgnoreCase) && File.Exists(managerMarker))
@@ -997,55 +989,7 @@ internal sealed class PatchModule
         var backup = Path.Combine(context.ProfileRoot, "kr-patch-backups", PluginFolder, context.Version, DateTime.Now.ToString("yyyyMMdd-HHmmss"));
         Directory.CreateDirectory(backup);
         CopyFiles(context.PluginDirectory, backup, Files);
-        BackupSharedGlamourerFile(context, backup);
         return backup;
-    }
-
-    private void EnsureSharedGlamourerBackup(ModuleContext context)
-    {
-        if (Id != "glamourer")
-            return;
-
-        var markerPath = FindMarker(context)
-            ?? throw new InvalidOperationException($"{Name}: 기존 패치 백업 마커를 찾지 못했습니다.");
-        using var marker = JsonDocument.Parse(File.ReadAllText(markerPath));
-        if (!marker.RootElement.TryGetProperty("backupDirectory", out var backupProperty) || string.IsNullOrWhiteSpace(backupProperty.GetString()))
-            throw new InvalidOperationException($"{Name}: 기존 패치 백업 경로를 찾지 못했습니다.");
-
-        BackupSharedGlamourerFile(context, Path.GetFullPath(backupProperty.GetString()!));
-    }
-
-    private void BackupSharedGlamourerFile(ModuleContext context, string backup)
-    {
-        if (Id != "glamourer")
-            return;
-
-        var sharedGameData = GlamourerPatchCore.FindSharedGameDataPath(context.PluginDirectory);
-        if (sharedGameData == null)
-            return;
-
-        var sharedVersion = Path.GetFileName(Path.GetDirectoryName(sharedGameData)!);
-        var destination = Path.Combine(backup, "shared", "Penumbra", sharedVersion, "Penumbra.GameData.dll");
-        if (File.Exists(destination))
-            return;
-
-        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-        File.Copy(sharedGameData, destination, false);
-    }
-
-    private void RestoreSharedGlamourerFile(ModuleContext context, string backup)
-    {
-        if (Id != "glamourer")
-            return;
-
-        var sharedGameData = GlamourerPatchCore.FindSharedGameDataPath(context.PluginDirectory);
-        if (sharedGameData == null)
-            return;
-
-        var sharedVersion = Path.GetFileName(Path.GetDirectoryName(sharedGameData)!);
-        var source = Path.Combine(backup, "shared", "Penumbra", sharedVersion, "Penumbra.GameData.dll");
-        if (File.Exists(source))
-            File.Copy(source, sharedGameData, true);
     }
 
     private void WriteMarker(ModuleContext context, string backup)
