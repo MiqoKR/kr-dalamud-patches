@@ -58,6 +58,14 @@ internal static class GlamourerPatchCore
         VerifyCreateNewModel(glamourerDll, dependencies);
         VerifyKoreanActorValidation(gameDataDll, dependencies);
         VerifyKoreanWorldDisplay(gameDataDll, dependencies);
+
+        var sharedGameData = FindSharedGameDataPath(pluginDirectory);
+        if (sharedGameData != null && !sharedGameData.Equals(gameDataDll, StringComparison.OrdinalIgnoreCase))
+        {
+            var sharedDependencies = new[] { Path.GetDirectoryName(sharedGameData)!, pluginDirectory, hookDirectory };
+            VerifyKoreanActorValidation(sharedGameData, sharedDependencies);
+            VerifyKoreanWorldDisplay(sharedGameData, sharedDependencies);
+        }
     }
 
     public static bool NeedsWorldDisplayUpgrade(string pluginDirectory, string hookDirectory)
@@ -68,8 +76,15 @@ internal static class GlamourerPatchCore
             var gameDataDll = Path.Combine(pluginDirectory, "Penumbra.GameData.dll");
             var dependencies = new[] { pluginDirectory, hookDirectory };
             VerifyCreateNewModel(glamourerDll, dependencies);
-            return !IsKoreanActorValidationPatched(gameDataDll, dependencies)
+            var needsUpgrade = !IsKoreanActorValidationPatched(gameDataDll, dependencies)
                 || !IsKoreanWorldDisplayPatched(gameDataDll, dependencies);
+            var sharedGameData = FindSharedGameDataPath(pluginDirectory);
+            if (sharedGameData == null || sharedGameData.Equals(gameDataDll, StringComparison.OrdinalIgnoreCase))
+                return needsUpgrade;
+
+            var sharedDependencies = new[] { Path.GetDirectoryName(sharedGameData)!, pluginDirectory, hookDirectory };
+            return needsUpgrade || !IsKoreanActorValidationPatched(sharedGameData, sharedDependencies)
+                || !IsKoreanWorldDisplayPatched(sharedGameData, sharedDependencies);
         }
         catch
         {
@@ -85,6 +100,37 @@ internal static class GlamourerPatchCore
         PatchKoreanWorldDisplay(gameDataDll, dependencies);
         VerifyKoreanActorValidation(gameDataDll, dependencies);
         VerifyKoreanWorldDisplay(gameDataDll, dependencies);
+        PatchSharedGameData(pluginDirectory, hookDirectory);
+    }
+
+    public static string? FindSharedGameDataPath(string glamourerPluginDirectory)
+    {
+        var versionDirectory = Directory.GetParent(glamourerPluginDirectory);
+        var installedPlugins = versionDirectory?.Parent;
+        if (installedPlugins == null || !installedPlugins.Name.Equals("installedPlugins", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var penumbraRoot = Path.Combine(installedPlugins.FullName, "Penumbra");
+        if (!Directory.Exists(penumbraRoot))
+            return null;
+
+        return Directory.GetDirectories(penumbraRoot)
+            .OrderByDescending(Path.GetFileName, StringComparer.Ordinal)
+            .Select(directory => Path.Combine(directory, "Penumbra.GameData.dll"))
+            .FirstOrDefault(File.Exists);
+    }
+
+    public static void PatchSharedGameData(string glamourerPluginDirectory, string hookDirectory)
+    {
+        var sharedGameData = FindSharedGameDataPath(glamourerPluginDirectory);
+        if (sharedGameData == null)
+            return;
+
+        var dependencies = new[] { Path.GetDirectoryName(sharedGameData)!, glamourerPluginDirectory, hookDirectory };
+        PatchKoreanActorValidation(sharedGameData, dependencies);
+        PatchKoreanWorldDisplay(sharedGameData, dependencies);
+        VerifyKoreanActorValidation(sharedGameData, dependencies);
+        VerifyKoreanWorldDisplay(sharedGameData, dependencies);
     }
 
     private static void PatchCreateNewModel(string dllPath, string[] dependencyDirectories)
