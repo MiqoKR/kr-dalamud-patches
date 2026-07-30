@@ -9,7 +9,7 @@
 | 호환성 | Customize+ KR 캐릭터 인식 | 단일 이름 · 로비 Actor fallback · Bone Editor 검증 완료 |
 | 호환성 | Glamourer KR | 1.7.0.1 Actors 복구 검증 완료 |
 | 호환성 | Simple Heels KR 안정성 | 0.11.1.8 격리 검증 완료 |
-| KR 데이터 | BossModReborn KR | 7.5.5.2 격리 검증 완료 |
+| KR 데이터 | BossModReborn KR | 7.5.5.5 격리 검증 완료 |
 | KR 데이터 | GatherBuddyReborn KR | 7.5.5.0 격리 검증 완료 |
 
 Patch Manager의 `검증 성공 조건` 열은 단순 파일 존재 여부가 아니라, 각 모듈이 실제로 검사한 패치 효과를 표시합니다.

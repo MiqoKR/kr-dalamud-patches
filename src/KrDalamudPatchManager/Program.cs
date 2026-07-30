@@ -726,7 +726,7 @@ internal sealed class PatchModule
                 },
             }),
         new PatchModule(
-            "bossmodreborn", "BossModReborn KR 데이터", "KR 데이터", "BossModReborn", new[] { "7.5.1.26", "7.5.1.29", "7.5.1.32", "7.5.1.35", "7.5.5.0", "7.5.5.2" }, new[] { "BossModReborn.dll" }, "KR Lumina 시트 · legacy map-effect 제거",
+            "bossmodreborn", "BossModReborn KR 데이터", "KR 데이터", "BossModReborn", new[] { "7.5.1.26", "7.5.1.29", "7.5.1.32", "7.5.1.35", "7.5.5.0", "7.5.5.2", "7.5.5.5" }, new[] { "BossModReborn.dll" }, "KR Lumina 시트 · legacy map-effect 제거",
             BossModPatchCore.IsPatched,
             patchInPlace: BossModPatchCore.Patch,
             officialManifestUrl: "https://raw.githubusercontent.com/FFXIV-CombatReborn/CombatRebornRepo/main/pluginmaster.json",
@@ -737,6 +737,7 @@ internal sealed class PatchModule
                 ["7.5.1.35"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "718049F61ED426CC0C07D58A87801C3A8CA1B23411B4A31063517362FBFA0599" },
                 ["7.5.5.0"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "3B0D2B282927E51454B932DDB99DF136C25BB9578DD3A204DFBD77CFB99A6B52" },
                 ["7.5.5.2"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "FB05BB5210CDC4CCC29F70FA39A24862621C4EC15C04DD2ED7A5FEE3B198B27B" },
+                ["7.5.5.5"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "60EF0EEA8FDBD3482CB363C22123458F6B90FF5B64A761982835E96D2E73948E" },
             }),
         new PatchModule(
             "gatherbuddyreborn", "GatherBuddyReborn KR 데이터", "KR 데이터", "GatherBuddyReborn", new[] { "7.5.1.0", "7.5.1.1", "7.5.5.0" }, new[] { "GatherBuddy.GameData.dll", "GatherBuddyReborn.dll" }, "언어 fallback · 낚시 Regex fallback",
