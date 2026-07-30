@@ -6,7 +6,7 @@
 
 | 분류 | 모듈 | 상태 |
 | --- | --- | --- |
-| 호환성 | Customize+ KR 캐릭터 인식 | 검증 완료 · 첫 릴리스 준비 |
+| 호환성 | Customize+ KR 캐릭터 인식 | 단일 이름 · 로비 Actor fallback · Bone Editor 검증 완료 |
 | 호환성 | Glamourer KR | 1.7.0.1 Actors 복구 검증 완료 |
 | 호환성 | Simple Heels KR 안정성 | 0.11.1.8 격리 검증 완료 |
 | KR 데이터 | BossModReborn KR | 7.5.5.2 격리 검증 완료 |
@@ -16,7 +16,7 @@ Patch Manager의 `검증 성공 조건` 열은 단순 파일 존재 여부가 �
 
 | 모듈 | 검증 성공 조건 |
 | --- | --- |
-| Customize+ | 한국어 단일 캐릭터명과 KR 월드 ID 인식 |
+| Customize+ | 한국어 단일 캐릭터명 · KR 월드 ID · 로비 Actor fallback · Bone Editor 단일 이름 안전 처리 |
 | Glamourer | 한국어 캐릭터 조건과 CreateNewModel 호환 |
 | Simple Heels | 탑승 기울기 필드 fallback · CalculateFloatHeight 훅 비활성 |
 | BossModReborn | KR Lumina 시트 호출과 legacy map-effect 참조 제거 |

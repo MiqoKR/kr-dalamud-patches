@@ -695,6 +695,8 @@ internal sealed class PatchModule
             "customizeplus", "Customize+ KR 캐릭터 인식", "호환성", "CustomizePlus", new[] { "2.2.0.3" }, new[] { "Penumbra.GameData.dll" }, "한국어 단일 이름 · KR 월드 ID 인식",
             (plugin, hook) => TryVerify(() => CustomizePlusPatchCore.Verify(plugin, hook)),
             (source, hook, output) => CustomizePlusPatchCore.Patch(source, hook, output),
+            needsUpgrade: CustomizePlusPatchCore.NeedsActorRuntimeUpgrade,
+            upgradeInPlace: CustomizePlusPatchCore.UpgradeActorRuntime,
             legacyMarker: "CustomizePlus.KR.Actor.Patch.json"),
         new PatchModule(
             "glamourer", "Glamourer KR 호환성", "호환성", "Glamourer", new[] { "1.6.1.7", "1.7.0.1" }, new[] { "Glamourer.dll", "Penumbra.GameData.dll" }, "한국어 캐릭터 조건 · CreateNewModel 호환",
