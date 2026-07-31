@@ -699,7 +699,7 @@ internal sealed class PatchModule
             upgradeInPlace: CustomizePlusPatchCore.UpgradeActorRuntime,
             legacyMarker: "CustomizePlus.KR.Actor.Patch.json"),
         new PatchModule(
-            "glamourer", "Glamourer KR 호환성", "호환성", "Glamourer", new[] { "1.6.1.7", "1.7.0.1" }, new[] { "Glamourer.dll", "Penumbra.GameData.dll" }, "한국어 캐릭터 조건 · CreateNewModel 호환",
+            "glamourer", "Glamourer KR 호환성", "호환성", "Glamourer", new[] { "1.6.1.7", "1.7.0.1", "1.7.0.2" }, new[] { "Glamourer.dll", "Penumbra.GameData.dll" }, "한국어 캐릭터 조건 · CreateNewModel 호환",
             GlamourerPatchCore.IsPatched,
             (source, hook, output) => GlamourerPatchCore.Patch(source, hook, output),
             needsUpgrade: GlamourerPatchCore.NeedsWorldDisplayUpgrade,
@@ -711,6 +711,11 @@ internal sealed class PatchModule
                 {
                     ["Glamourer.dll"] = "BE9484C105846C577AF2C98DEA09CEB670AAFFA16C3CB57BE6F51E4CBDB9BB60",
                     ["Penumbra.GameData.dll"] = "A9BB73AA345245066ED23ED6C8CF95758E4A658FED09432499FEEDF20A258062",
+                },
+                ["1.7.0.2"] = new Dictionary<string, string>
+                {
+                    ["Glamourer.dll"] = "F9A8BC33FE275FE394B76B582664C0B8C6D3BE1436DFF25CAD65547966F5F430",
+                    ["Penumbra.GameData.dll"] = "C176B4D6B9727B2AA98121B0157273CD6C51BA27E2C554E6D402B3A0B29DC551",
                 },
             }),
         new PatchModule(
@@ -726,7 +731,7 @@ internal sealed class PatchModule
                 },
             }),
         new PatchModule(
-            "bossmodreborn", "BossModReborn KR 데이터", "KR 데이터", "BossModReborn", new[] { "7.5.1.26", "7.5.1.29", "7.5.1.32", "7.5.1.35", "7.5.5.0", "7.5.5.2", "7.5.5.5" }, new[] { "BossModReborn.dll" }, "KR Lumina 시트 · legacy map-effect 제거",
+            "bossmodreborn", "BossModReborn KR 데이터", "KR 데이터", "BossModReborn", new[] { "7.5.1.26", "7.5.1.29", "7.5.1.32", "7.5.1.35", "7.5.5.0", "7.5.5.2", "7.5.5.5", "7.5.5.9" }, new[] { "BossModReborn.dll" }, "KR Lumina 시트 · legacy map-effect 제거",
             BossModPatchCore.IsPatched,
             patchInPlace: BossModPatchCore.Patch,
             officialManifestUrl: "https://raw.githubusercontent.com/FFXIV-CombatReborn/CombatRebornRepo/main/pluginmaster.json",
@@ -738,6 +743,7 @@ internal sealed class PatchModule
                 ["7.5.5.0"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "3B0D2B282927E51454B932DDB99DF136C25BB9578DD3A204DFBD77CFB99A6B52" },
                 ["7.5.5.2"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "FB05BB5210CDC4CCC29F70FA39A24862621C4EC15C04DD2ED7A5FEE3B198B27B" },
                 ["7.5.5.5"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "60EF0EEA8FDBD3482CB363C22123458F6B90FF5B64A761982835E96D2E73948E" },
+                ["7.5.5.9"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "0E2F3AB0A6B7F568709E8DC4992BB30EEA2A477B66F63954DED4F049A77507BD" },
             }),
         new PatchModule(
             "gatherbuddyreborn", "GatherBuddyReborn KR 데이터", "KR 데이터", "GatherBuddyReborn", new[] { "7.5.1.0", "7.5.1.1", "7.5.5.0" }, new[] { "GatherBuddy.GameData.dll", "GatherBuddyReborn.dll" }, "언어 fallback · 낚시 Regex fallback",
