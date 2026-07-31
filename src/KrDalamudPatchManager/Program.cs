@@ -719,6 +719,28 @@ internal sealed class PatchModule
                 },
             }),
         new PatchModule(
+            "penumbra", "Penumbra KR 개인 할당", "호환성", "Penumbra", new[] { "1.7.0.5" }, new[] { "Penumbra.GameData.dll" }, "한국어 캐릭터명 · KR 월드 ID 인식",
+            PenumbraPatchCore.IsPatched,
+            (source, hook, output) => PenumbraPatchCore.Patch(source, hook, output),
+            originalHashesByVersion: new Dictionary<string, IReadOnlyDictionary<string, string>>
+            {
+                ["1.7.0.5"] = new Dictionary<string, string>
+                {
+                    ["Penumbra.GameData.dll"] = "D904B9A4E7C0159E9519EF3D1612FF16A30EB16DDC4206A717E1EA24037CD9BF",
+                },
+            }),
+        new PatchModule(
+            "umbra", "Umbra KR UI 호환성", "호환성", "Umbra", new[] { "3.1.17.0" }, new[] { "Una.Drawing.dll" }, "AtkResNode.IsVisible 클리핑 fallback",
+            UmbraPatchCore.IsPatched,
+            (source, hook, output) => UmbraPatchCore.Patch(source, hook, output),
+            originalHashesByVersion: new Dictionary<string, IReadOnlyDictionary<string, string>>
+            {
+                ["3.1.17.0"] = new Dictionary<string, string>
+                {
+                    ["Una.Drawing.dll"] = "E57DDE0995D72BA8CC2F254F30C236408F95568C5822DEEF43B77767F0A0B94D",
+                },
+            }),
+        new PatchModule(
             "simpleheels", "Simple Heels KR 안정성", "호환성", "SimpleHeels", new[] { "0.11.1.8" }, new[] { "SimpleHeels.dll" }, "탑승 기울기 fallback · 수영 높이 보정 훅 비활성",
             SimpleHeelsPatchCore.IsPatched,
             patchInPlace: SimpleHeelsPatchCore.Patch,

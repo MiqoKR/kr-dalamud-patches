@@ -49,6 +49,47 @@ internal static class GlamourerPatchCore
         }
     }
 
+    // This portion is shared with Penumbra itself: Korean player-name validation and
+    // Korean world-name resolution live in Penumbra.GameData.dll, not Glamourer.dll.
+    internal static void PatchGameDataCompatibility(string pluginDirectory, string hookDirectory, string outputDirectory)
+    {
+        RequireDirectory(pluginDirectory);
+        RequireDirectory(hookDirectory);
+        CopyDirectory(pluginDirectory, outputDirectory);
+
+        var gameDataDll = Path.Combine(outputDirectory, "Penumbra.GameData.dll");
+        RequireFile(gameDataDll);
+        var compatibleHookDirectory = ResolveCompatibleHookDirectory(gameDataDll, hookDirectory);
+        var dependencies = new[] { outputDirectory, pluginDirectory, compatibleHookDirectory };
+
+        PatchKoreanActorValidation(gameDataDll, dependencies);
+        PatchKoreanWorldDisplay(gameDataDll, dependencies);
+        VerifyGameDataCompatibility(outputDirectory, compatibleHookDirectory);
+    }
+
+    internal static bool IsGameDataCompatibilityPatched(string pluginDirectory, string hookDirectory)
+    {
+        try
+        {
+            VerifyGameDataCompatibility(pluginDirectory, hookDirectory);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void VerifyGameDataCompatibility(string pluginDirectory, string hookDirectory)
+    {
+        var gameDataDll = Path.Combine(pluginDirectory, "Penumbra.GameData.dll");
+        RequireFile(gameDataDll);
+        var compatibleHookDirectory = ResolveCompatibleHookDirectory(gameDataDll, hookDirectory);
+        var dependencies = new[] { pluginDirectory, compatibleHookDirectory };
+        VerifyKoreanActorValidation(gameDataDll, dependencies);
+        VerifyKoreanWorldDisplay(gameDataDll, dependencies);
+    }
+
     public static void Verify(string pluginDirectory, string hookDirectory)
     {
         var glamourerDll = Path.Combine(pluginDirectory, "Glamourer.dll");

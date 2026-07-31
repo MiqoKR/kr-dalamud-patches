@@ -8,6 +8,8 @@
 | --- | --- | --- |
 | 호환성 | Customize+ KR 캐릭터 인식 | 단일 이름 · 로비 Actor fallback · Bone Editor 검증 완료 |
 | 호환성 | Glamourer KR | 1.7.0.2 Actors 복구 격리 검증 완료 |
+| 호환성 | Penumbra KR 개인 할당 | 한국어 캐릭터명 · KR 월드 ID 격리 검증 완료 |
+| 호환성 | Umbra KR UI 호환성 | 3.1.17.0 AtkResNode.IsVisible fallback 격리 검증 완료 |
 | 호환성 | Simple Heels KR 안정성 | 0.11.1.8 격리 검증 완료 |
 | KR 데이터 | BossModReborn KR | 7.5.5.9 격리 검증 완료 |
 | KR 데이터 | GatherBuddyReborn KR | 7.5.5.0 격리 검증 완료 |
@@ -40,7 +42,7 @@ BossModReborn, GatherBuddyReborn, Simple Heels는 `새 버전 검사`를 지원�
 
 ## 현재 제공 모듈
 
-`Customize+ KR 캐릭터 인식`은 한국어 단일 캐릭터명과 한국 서버 월드 ID를 Customize+ 프로필에서 인식하도록 보정합니다. Glamourer, Simple Heels, BossModReborn, GatherBuddyReborn도 같은 실행 파일에서 독립 항목으로 처리합니다.
+`Customize+ KR 캐릭터 인식`은 한국어 단일 캐릭터명과 한국 서버 월드 ID를 Customize+ 프로필에서 인식하도록 보정합니다. Penumbra KR 개인 할당은 같은 식별자를 Penumbra 컬렉션의 개별 캐릭터 할당에서 사용하도록 보정합니다. Umbra KR UI 호환성은 한국 클라이언트에서 해석되지 않는 Una.Drawing 클리핑 주소 사용을 우회합니다. Glamourer, Simple Heels, BossModReborn, GatherBuddyReborn도 같은 실행 파일에서 독립 항목으로 처리합니다.
 
 - 원본 플러그인 파일은 포함하거나 재배포하지 않습니다.
 - 정확히 검증된 Customize+ 버전에만 적용합니다.
