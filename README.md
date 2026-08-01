@@ -9,7 +9,9 @@
 | 호환성 | Customize+ KR 캐릭터 인식 | 단일 이름 · 로비 Actor fallback · Bone Editor 검증 완료 |
 | 호환성 | Glamourer KR | 1.7.0.2 Actors 복구 격리 검증 완료 |
 | 호환성 | Penumbra KR 개인 할당 | 한국어 캐릭터명 · KR 월드 ID 격리 검증 완료 |
-| 호환성 | Umbra KR UI 호환성 | 3.1.17.0 AtkResNode.IsVisible fallback 격리 검증 완료 |
+| 공통 호환성 | Dalamud 공통 UI / AtkResNode | 한섭 7.55 IsVisible 주소 자동 계산·캐시 적용·복원 검증 완료 |
+| 호환성 | Umbra KR UI 호환성 | 3.1.17.0 AtkResNode.IsVisible 클리핑 fallback 검증 완료 |
+| 호환성 | HaselTweaks KR UI 호환성 | 49.2.1.0 KR UI 관리자 오프셋 · AddonObserver 안정화 검증 완료 |
 | 호환성 | Simple Heels KR 안정성 | 0.11.1.8 격리 검증 완료 |
 | KR 데이터 | BossModReborn KR | 7.5.5.9 격리 검증 완료 |
 | KR 데이터 | GatherBuddyReborn KR | 7.5.5.0 격리 검증 완료 |
@@ -18,8 +20,11 @@ Patch Manager의 `검증 성공 조건` 열은 단순 파일 존재 여부가 �
 
 | 모듈 | 검증 성공 조건 |
 | --- | --- |
+| Dalamud 공통 UI / AtkResNode | 한섭 실행 파일의 호출 2개가 같은 함수로 연결되고 대상 함수 본문까지 일치 |
 | Customize+ | 한국어 단일 캐릭터명 · KR 월드 ID · 로비 Actor fallback · Bone Editor 단일 이름 안전 처리 |
 | Glamourer | 한국어 캐릭터 조건과 CreateNewModel 호환 |
+| Umbra | AtkResNode.IsVisible 실패 시 UI 클리핑 호출을 안전하게 우회 |
+| HaselTweaks | KR RaptureAtkUnitManager 오프셋 · AddonObserver 단일 포인터 읽기 |
 | Simple Heels | 탑승 기울기 필드 fallback · CalculateFloatHeight 훅 비활성 |
 | BossModReborn | KR Lumina 시트 호출과 legacy map-effect 참조 제거 |
 | GatherBuddyReborn | 언어 fallback 및 낚시 Regex fallback |
@@ -42,7 +47,11 @@ BossModReborn, GatherBuddyReborn, Simple Heels는 `새 버전 검사`를 지원�
 
 ## 현재 제공 모듈
 
-`Customize+ KR 캐릭터 인식`은 한국어 단일 캐릭터명과 한국 서버 월드 ID를 Customize+ 프로필에서 인식하도록 보정합니다. Penumbra KR 개인 할당은 같은 식별자를 Penumbra 컬렉션의 개별 캐릭터 할당에서 사용하도록 보정합니다. Umbra KR UI 호환성은 한국 클라이언트에서 해석되지 않는 Una.Drawing 클리핑 주소 사용을 우회합니다. Glamourer, Simple Heels, BossModReborn, GatherBuddyReborn도 같은 실행 파일에서 독립 항목으로 처리합니다.
+`Dalamud 공통 UI / AtkResNode`는 특정 플러그인 DLL을 수정하지 않습니다. 설치된 `FFXIVClientStructs.dll`에서 현재 `AtkResNode.IsVisible` 캐시 키를 읽고, 한섭 `ffxiv_dx11.exe`에서 교차검증한 함수 주소를 `cachedSigs\\cs.json`에 기록합니다. Umbra처럼 이 주소 해석 실패로 UI가 보이지 않는 경우를 보정하는 항목이며, Artisan·Distance 등의 언어 데이터·고유 상태 오류까지 해결하는 기능은 아닙니다. Dalamud 업데이트로 Hook이 교체되면 Patch Manager에서 이 항목을 다시 적용하면 됩니다.
+
+`HaselTweaks KR UI 호환성`은 한섭 Hook에서 검증된 UI 관리자 레이아웃을 HaselTweaks에 적용하고, UI 목록 갱신 중 발생할 수 있는 AddonObserver 포인터 재읽기를 제거합니다. `Umbra KR UI 호환성`은 Una.Drawing의 클리핑 주소 실패로 Umbra UI가 표시되지 않는 문제를 별도 항목으로 보정합니다.
+
+`Customize+ KR 캐릭터 인식`은 한국어 단일 캐릭터명과 한국 서버 월드 ID를 Customize+ 프로필에서 인식하도록 보정합니다. Penumbra KR 개인 할당은 같은 식별자를 Penumbra 컬렉션의 개별 캐릭터 할당에서 사용하도록 보정합니다. Glamourer, Simple Heels, BossModReborn, GatherBuddyReborn도 같은 실행 파일에서 독립 항목으로 처리합니다.
 
 - 원본 플러그인 파일은 포함하거나 재배포하지 않습니다.
 - 정확히 검증된 Customize+ 버전에만 적용합니다.

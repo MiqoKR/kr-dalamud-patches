@@ -40,6 +40,17 @@ internal static class Program
             return 0;
         }
 
+        if (args.Length == 3 && (args[0] == "--apply-module" || args[0] == "--restore-module"))
+        {
+            var module = PatchManagerEdition.VisibleModules().FirstOrDefault(candidate => candidate.Id == args[2])
+                ?? throw new ArgumentException("패치 모듈을 찾지 못했습니다.");
+            PatchModule.EnsureGameStopped();
+            Console.WriteLine(args[0] == "--apply-module"
+                ? module.Apply(args[1])
+                : module.Restore(args[1]));
+            return 0;
+        }
+
         ApplicationConfiguration.Initialize();
         Application.Run(new PatchManagerForm());
         return 0;
@@ -641,6 +652,9 @@ internal sealed class PatchModule
     private readonly Action<string, string, string>? patchToStaging;
     private readonly Action<string, string>? patchInPlace;
     private readonly Action<string, string>? upgradeInPlace;
+    private readonly Func<string, ModuleStatus>? profileStatus;
+    private readonly Func<string, string>? profileApply;
+    private readonly Func<string, string>? profileRestore;
 
     private PatchModule(
         string id,
@@ -676,6 +690,29 @@ internal sealed class PatchModule
         OriginalHashesByVersion = originalHashesByVersion ?? new Dictionary<string, IReadOnlyDictionary<string, string>>();
     }
 
+    private PatchModule(
+        string id,
+        string name,
+        string group,
+        string successCase,
+        Func<string, ModuleStatus> profileStatus,
+        Func<string, string> profileApply,
+        Func<string, string> profileRestore)
+    {
+        Id = id;
+        Name = name;
+        Group = group;
+        PluginFolder = "";
+        SupportedVersions = Array.Empty<string>();
+        Files = Array.Empty<string>();
+        SuccessCase = successCase;
+        verify = (_, _) => false;
+        this.profileStatus = profileStatus;
+        this.profileApply = profileApply;
+        this.profileRestore = profileRestore;
+        OriginalHashesByVersion = new Dictionary<string, IReadOnlyDictionary<string, string>>();
+    }
+
     public string Id { get; }
     public string Name { get; }
     public string Group { get; }
@@ -691,6 +728,11 @@ internal sealed class PatchModule
 
     public static List<PatchModule> CreateAll() => new()
     {
+        new PatchModule(
+            "common-ui", "Dalamud 공통 UI / AtkResNode", "공통 호환성", "공통 IsVisible 주소 자동 계산 · UI 기반 플러그인 일괄 호환",
+            CommonUiAddressPatchCore.GetStatus,
+            CommonUiAddressPatchCore.Apply,
+            CommonUiAddressPatchCore.Restore),
         new PatchModule(
             "customizeplus", "Customize+ KR 캐릭터 인식", "호환성", "CustomizePlus", new[] { "2.2.0.3" }, new[] { "Penumbra.GameData.dll" }, "한국어 단일 이름 · KR 월드 ID 인식",
             (plugin, hook) => TryVerify(() => CustomizePlusPatchCore.Verify(plugin, hook)),
@@ -730,14 +772,20 @@ internal sealed class PatchModule
                 },
             }),
         new PatchModule(
-            "umbra", "Umbra KR UI 호환성", "호환성", "Umbra", new[] { "3.1.17.0" }, new[] { "Una.Drawing.dll" }, "AtkResNode.IsVisible 클리핑 fallback",
+            "umbra", "Umbra KR UI 호환성", "호환성", "Umbra", new[] { "3.1.17.0" }, new[] { "Umbra.dll", "Una.Drawing.dll" }, "AtkResNode.IsVisible 실패 시 클리핑 안전 fallback",
             UmbraPatchCore.IsPatched,
-            (source, hook, output) => UmbraPatchCore.Patch(source, hook, output),
+            (source, hook, output) => UmbraPatchCore.Patch(source, hook, output)),
+        new PatchModule(
+            "haseltweaks", "HaselTweaks KR UI 호환성", "호환성", "HaselTweaks", new[] { "49.2.1.0" }, new[] { "FFXIVClientStructs.dll", "HaselCommon.dll" }, "KR UI 관리자 오프셋 · AddonObserver 안정화",
+            HaselTweaksPatchCore.IsPatched,
+            (source, hook, output) => HaselTweaksPatchCore.Patch(source, hook, output),
+            officialManifestUrl: "https://raw.githubusercontent.com/Haselnussbomber/MyDalamudPlugins/main/repo.json",
             originalHashesByVersion: new Dictionary<string, IReadOnlyDictionary<string, string>>
             {
-                ["3.1.17.0"] = new Dictionary<string, string>
+                ["49.2.1.0"] = new Dictionary<string, string>
                 {
-                    ["Una.Drawing.dll"] = "E57DDE0995D72BA8CC2F254F30C236408F95568C5822DEEF43B77767F0A0B94D",
+                    ["FFXIVClientStructs.dll"] = "4EDD4702E14A2A928C7E026267E0EB31058C5A999CACE3D75213864330EFDA04",
+                    ["HaselCommon.dll"] = "7E981EE18D4B7403D2F1B2AD5CC69B0B6EDDDA09D894C9C84478F36C3DE98876",
                 },
             }),
         new PatchModule(
@@ -789,6 +837,11 @@ internal sealed class PatchModule
 
     public ModuleStatus GetStatus(string profileRoot)
     {
+        if (profileStatus is not null)
+        {
+            return profileStatus(profileRoot);
+        }
+
         try
         {
             var context = Discover(profileRoot);
@@ -822,6 +875,11 @@ internal sealed class PatchModule
 
     public string Apply(string profileRoot)
     {
+        if (profileApply is not null)
+        {
+            return profileApply(profileRoot);
+        }
+
         var context = Discover(profileRoot);
         RequireSupported(context);
         if (verify(context.PluginDirectory, context.HookDirectory))
@@ -889,6 +947,11 @@ internal sealed class PatchModule
 
     public string Restore(string profileRoot)
     {
+        if (profileRestore is not null)
+        {
+            return profileRestore(profileRoot);
+        }
+
         var context = Discover(profileRoot);
         var markerPath = FindMarker(context);
         if (markerPath == null)
