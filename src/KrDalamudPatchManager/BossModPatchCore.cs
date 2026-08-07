@@ -17,6 +17,23 @@ internal static class BossModPatchCore
         Verify(pluginDirectory, hookDirectory);
     }
 
+    /// <summary>
+    /// Verifies that the current BossMod assembly still has the exact semantic
+    /// targets required by the KR patch without writing any files.  BossMod
+    /// changes its assembly version frequently, while these targets are much
+    /// more stable than a version number or a byte offset.
+    /// </summary>
+    public static void ValidatePatchShape(string pluginDirectory, string hookDirectory)
+    {
+        pluginDirectory = Path.GetFullPath(pluginDirectory);
+        hookDirectory = Path.GetFullPath(hookDirectory);
+        var dllPath = Path.Combine(pluginDirectory, "BossModReborn.dll");
+        RequireFile(dllPath);
+        RequireFile(Path.Combine(hookDirectory, "Dalamud.dll"));
+        RequireFile(Path.Combine(hookDirectory, "Lumina.Excel.dll"));
+        PatchBossMod(dllPath, pluginDirectory, hookDirectory, writePatchedAssembly: false);
+    }
+
     public static bool IsPatched(string pluginDirectory, string hookDirectory)
     {
         try
@@ -50,7 +67,7 @@ static void RequireFile(string path)
     }
 }
 
-static void PatchBossMod(string dllPath, string pluginDirectory, string hookDirectory)
+static void PatchBossMod(string dllPath, string pluginDirectory, string hookDirectory, bool writePatchedAssembly = true)
 {
     var tempPath = dllPath + ".patched";
     AssemblyDefinition? assembly = null;
@@ -91,15 +108,21 @@ static void PatchBossMod(string dllPath, string pluginDirectory, string hookDire
         il.Append(il.Create(OpCodes.Ret));
 
         PatchLegacyMapEffectHook(module);
-        assembly.Write(tempPath);
+        if (writePatchedAssembly)
+        {
+            assembly.Write(tempPath);
+        }
     }
     finally
     {
         assembly?.Dispose();
     }
 
-    File.Copy(tempPath, dllPath, overwrite: true);
-    File.Delete(tempPath);
+    if (writePatchedAssembly)
+    {
+        File.Copy(tempPath, dllPath, overwrite: true);
+        File.Delete(tempPath);
+    }
 }
 
 static void PatchLegacyMapEffectHook(ModuleDefinition module)

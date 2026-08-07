@@ -671,7 +671,8 @@ internal sealed class PatchModule
         Action<string, string>? upgradeInPlace = null,
         string? legacyMarker = null,
         string? officialManifestUrl = null,
-        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? originalHashesByVersion = null)
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? originalHashesByVersion = null,
+        Action<string, string>? validateUnsupportedVersion = null)
     {
         Id = id;
         Name = name;
@@ -688,6 +689,7 @@ internal sealed class PatchModule
         LegacyMarker = legacyMarker;
         OfficialManifestUrl = officialManifestUrl;
         OriginalHashesByVersion = originalHashesByVersion ?? new Dictionary<string, IReadOnlyDictionary<string, string>>();
+        this.validateUnsupportedVersion = validateUnsupportedVersion;
     }
 
     private PatchModule(
@@ -724,6 +726,7 @@ internal sealed class PatchModule
     public string? OfficialManifestUrl { get; }
     public bool CanInspectUpdates => OfficialManifestUrl != null;
     private IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> OriginalHashesByVersion { get; }
+    private readonly Action<string, string>? validateUnsupportedVersion;
     private string ManagerMarker => $"KR.Dalamud.PatchManager.{Id}.json";
 
     public static List<PatchModule> CreateAll() => new()
@@ -814,7 +817,8 @@ internal sealed class PatchModule
                 ["7.5.5.2"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "FB05BB5210CDC4CCC29F70FA39A24862621C4EC15C04DD2ED7A5FEE3B198B27B" },
                 ["7.5.5.5"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "60EF0EEA8FDBD3482CB363C22123458F6B90FF5B64A761982835E96D2E73948E" },
                 ["7.5.5.9"] = new Dictionary<string, string> { ["BossModReborn.dll"] = "0E2F3AB0A6B7F568709E8DC4992BB30EEA2A477B66F63954DED4F049A77507BD" },
-            }),
+            },
+            validateUnsupportedVersion: BossModPatchCore.ValidatePatchShape),
         new PatchModule(
             "gatherbuddyreborn", "GatherBuddyReborn KR 데이터", "KR 데이터", "GatherBuddyReborn", new[] { "7.5.1.0", "7.5.1.1", "7.5.5.0" }, new[] { "GatherBuddy.GameData.dll", "GatherBuddyReborn.dll" }, "언어 fallback · 낚시 Regex fallback",
             GatherBuddyPatchCore.IsPatched,
@@ -845,11 +849,6 @@ internal sealed class PatchModule
         try
         {
             var context = Discover(profileRoot);
-            if (!SupportedVersions.Contains(context.Version, StringComparer.Ordinal))
-            {
-                return new ModuleStatus(context.Version, $"미지원 버전입니다. 현재 지원: {string.Join(", ", SupportedVersions)}", false, true, false, false);
-            }
-
             if (verify(context.PluginDirectory, context.HookDirectory))
             {
                 var canRestore = FindMarker(context) != null;
@@ -857,6 +856,23 @@ internal sealed class PatchModule
                     ? "적용됨 · 원본 복원 가능"
                     : "적용됨 · 기존 원본 백업이 없어 현재 상태 보호";
                 return new ModuleStatus(context.Version, message, true, false, false, canRestore);
+            }
+
+            if (!SupportedVersions.Contains(context.Version, StringComparer.Ordinal))
+            {
+                if (validateUnsupportedVersion is null)
+                {
+                    return new ModuleStatus(context.Version, $"미지원 버전입니다. 현재 지원: {string.Join(", ", SupportedVersions)}", false, true, false, false);
+                }
+
+                validateUnsupportedVersion(context.PluginDirectory, context.HookDirectory);
+                return new ModuleStatus(
+                    context.Version,
+                    "새 버전 구조 검증 성공 · 원본 백업 후 재적용 가능",
+                    false,
+                    false,
+                    true,
+                    false);
             }
 
             if (needsUpgrade?.Invoke(context.PluginDirectory, context.HookDirectory) == true && upgradeInPlace != null)
@@ -881,7 +897,7 @@ internal sealed class PatchModule
         }
 
         var context = Discover(profileRoot);
-        RequireSupported(context);
+        RequireSupportedOrValidateCurrentStructure(context);
         if (verify(context.PluginDirectory, context.HookDirectory))
         {
             return $"{Name}: 이미 적용되어 있습니다.";
@@ -1049,11 +1065,15 @@ internal sealed class PatchModule
 
         var candidate = Directory.GetDirectories(pluginRoot)
             .Where(directory => Files.All(file => File.Exists(Path.Combine(directory, file))))
-            .OrderByDescending(Path.GetFileName)
+            .OrderByDescending(directory => ParseDirectoryVersion(Path.GetFileName(directory)))
+            .ThenByDescending(Path.GetFileName, StringComparer.Ordinal)
             .FirstOrDefault() ?? throw new FileNotFoundException($"{Name} DLL을 찾지 못했습니다.");
         var hook = FindHookDirectory(root);
         return new ModuleContext(root, candidate, hook, Path.GetFileName(candidate));
     }
+
+    private static Version ParseDirectoryVersion(string? directoryName)
+        => Version.TryParse(directoryName, out var version) ? version : new Version(0, 0);
 
     private void RequireSupported(ModuleContext context)
     {
@@ -1061,6 +1081,22 @@ internal sealed class PatchModule
         {
             throw new InvalidOperationException($"{Name} {context.Version}은(는) 지원하지 않습니다. 현재 지원 버전: {string.Join(", ", SupportedVersions)}");
         }
+    }
+
+    private void RequireSupportedOrValidateCurrentStructure(ModuleContext context)
+    {
+        if (SupportedVersions.Contains(context.Version, StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        if (validateUnsupportedVersion is null)
+        {
+            RequireSupported(context);
+            return;
+        }
+
+        validateUnsupportedVersion(context.PluginDirectory, context.HookDirectory);
     }
 
     private void RequireKnownOriginalHash(ModuleContext context)

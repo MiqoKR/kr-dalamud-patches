@@ -393,7 +393,7 @@ internal static class CommonUiAddressPatchCore
         var gameFile = new FileInfo(context.GameExecutablePath);
         var marker = new CommonUiMarker
         {
-            PatchManagerVersion = "0.2.21",
+            PatchManagerVersion = "0.2.22",
             PatchedAt = DateTimeOffset.Now,
             CacheKey = context.CacheKey,
             ResolvedRva = resolution.TargetRva,
