@@ -775,10 +775,6 @@ internal sealed class PatchModule
                 },
             }),
         new PatchModule(
-            "umbra", "Umbra KR UI 호환성", "호환성", "Umbra", new[] { "3.1.17.0" }, new[] { "Umbra.dll", "Una.Drawing.dll" }, "AtkResNode.IsVisible 실패 시 클리핑 안전 fallback",
-            UmbraPatchCore.IsPatched,
-            (source, hook, output) => UmbraPatchCore.Patch(source, hook, output)),
-        new PatchModule(
             "haseltweaks", "HaselTweaks KR UI 호환성", "호환성", "HaselTweaks", new[] { "49.2.1.0" }, new[] { "FFXIVClientStructs.dll", "HaselCommon.dll" }, "KR UI 관리자 오프셋 · AddonObserver 안정화",
             HaselTweaksPatchCore.IsPatched,
             (source, hook, output) => HaselTweaksPatchCore.Patch(source, hook, output),
