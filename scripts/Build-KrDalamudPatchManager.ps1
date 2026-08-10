@@ -2,7 +2,7 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
-    [string]$Version = '0.2.25',
+    [string]$Version = '0.2.26',
     [switch]$NoRestore
 )
 

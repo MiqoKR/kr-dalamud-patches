@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using CustomizePlusKrActorPatcher;
 using GlamourerKrActorPatcher;
 using KrDalamudPatchManager.Modules;
@@ -727,6 +728,7 @@ internal static class OfficialPluginInstaller
             ZipFile.ExtractToDirectory(archive, extracted);
             var candidate = PendingPatchInspector.FindCandidateDirectory(extracted, module);
             ValidateCandidateManifest(candidate, module, versionText);
+            PreservePluginManagementMetadata(candidate, pluginRoot, module, module.OfficialManifestUrl);
 
             var prepared = Path.Combine(temporaryRoot, "prepared");
             PatchModule.CopyDirectory(candidate, prepared);
@@ -795,6 +797,46 @@ internal static class OfficialPluginInstaller
             throw new InvalidOperationException("공식 ZIP 매니페스트가 선택한 BossModReborn 버전과 일치하지 않습니다.");
         }
     }
+
+    private static void PreservePluginManagementMetadata(string candidateDirectory, string pluginRoot, PatchModule module, string officialManifestUrl)
+    {
+        var candidateManifestPath = Path.Combine(candidateDirectory, module.PluginFolder + ".json");
+        var candidate = JsonNode.Parse(File.ReadAllText(candidateManifestPath))?.AsObject()
+            ?? throw new InvalidOperationException("공식 ZIP 플러그인 매니페스트를 읽지 못했습니다.");
+
+        JsonObject? existing = null;
+        if (Directory.Exists(pluginRoot))
+        {
+            foreach (var directory in Directory.GetDirectories(pluginRoot)
+                         .OrderByDescending(path => ParseVersion(Path.GetFileName(path))))
+            {
+                var path = Path.Combine(directory, module.PluginFolder + ".json");
+                if (!File.Exists(path))
+                {
+                    continue;
+                }
+
+                existing = JsonNode.Parse(File.ReadAllText(path))?.AsObject();
+                if (existing is not null)
+                {
+                    break;
+                }
+            }
+        }
+
+        if (existing?["WorkingPluginId"] is JsonValue workingPluginId && workingPluginId.TryGetValue<string>(out var id) && !string.IsNullOrWhiteSpace(id))
+        {
+            candidate["WorkingPluginId"] = id;
+        }
+
+        candidate["InstalledFromUrl"] = officialManifestUrl;
+        candidate["IsThirdParty"] = true;
+        candidate["ScheduledForDeletion"] = false;
+        File.WriteAllText(candidateManifestPath, candidate.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static Version ParseVersion(string? value)
+        => Version.TryParse(value, out var version) ? version : new Version(0, 0);
 }
 
 internal sealed class PatchModule
