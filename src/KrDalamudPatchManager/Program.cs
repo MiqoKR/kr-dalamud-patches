@@ -40,6 +40,15 @@ internal static class Program
             return 0;
         }
 
+        if (args.Length == 3 && args[0] == "--install-latest")
+        {
+            var module = PatchManagerEdition.VisibleModules().FirstOrDefault(candidate => candidate.Id == args[2] && candidate.CanInstallOfficialUpdate)
+                ?? throw new ArgumentException("공식 ZIP 설치를 지원하는 모듈을 찾지 못했습니다.");
+            PatchModule.EnsureGameStopped();
+            Console.WriteLine(OfficialPluginInstaller.InstallLatest(module, args[1]));
+            return 0;
+        }
+
         if (args.Length == 3 && (args[0] == "--apply-module" || args[0] == "--restore-module"))
         {
             var module = PatchManagerEdition.VisibleModules().FirstOrDefault(candidate => candidate.Id == args[2])
@@ -68,6 +77,7 @@ internal sealed class PatchManagerForm : Form
     private readonly Button browseButton = new();
     private readonly Button updateButton = new();
     private readonly Button inspectUpdateButton = new();
+    private readonly Button installBossModButton = new();
     private readonly List<PatchModule> modules = PatchManagerEdition.VisibleModules();
     private bool busy;
 
@@ -159,6 +169,12 @@ internal sealed class PatchManagerForm : Form
             inspectUpdateButton.SetBounds(610, 398, 130, 34);
             inspectUpdateButton.Click += async (_, _) => await InspectSelectedUpdatesAsync();
             Controls.Add(inspectUpdateButton);
+
+            installBossModButton.Text = "BossMod 최신 설치";
+            installBossModButton.SetBounds(748, 398, 134, 34);
+            installBossModButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            installBossModButton.Click += async (_, _) => await InstallBossModLatestAsync();
+            Controls.Add(installBossModButton);
         }
 
         Controls.Add(new Label
@@ -326,6 +342,32 @@ internal sealed class PatchManagerForm : Form
             .ToArray());
     }
 
+    private async Task InstallBossModLatestAsync()
+    {
+        var module = modules.FirstOrDefault(candidate => candidate.Id == "bossmodreborn" && candidate.CanInstallOfficialUpdate);
+        if (module is null)
+        {
+            MessageBox.Show(this, "BossModReborn 최신 설치 기능을 찾지 못했습니다.", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
+        var answer = MessageBox.Show(
+            this,
+            "게임, XIVLauncher, Dalamud가 모두 종료된 상태에서만 실행할 수 있습니다.\n\n공식 BossModReborn 최신 ZIP을 내려받아 KR 패치와 검증을 마친 뒤 설치합니다. 기존 BossMod 설정은 유지됩니다.\n\n계속할까요?",
+            "BossModReborn 최신 설치",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+        if (answer != DialogResult.Yes)
+        {
+            return;
+        }
+
+        await RunAsync("BossModReborn 최신 설치", () => new[]
+        {
+            OfficialPluginInstaller.InstallLatest(module, profileRootBox.Text),
+        });
+    }
+
     private void SetBusy(bool value)
     {
         busy = value;
@@ -335,6 +377,7 @@ internal sealed class PatchManagerForm : Form
         browseButton.Enabled = !value;
         updateButton.Enabled = !value;
         inspectUpdateButton.Enabled = !value;
+        installBossModButton.Enabled = !value;
         UseWaitCursor = value;
     }
 
@@ -537,7 +580,7 @@ internal static class PendingPatchInspector
         }
     }
 
-    private static JsonElement LoadOfficialEntry(string manifestUrl, string internalName)
+    internal static JsonElement LoadOfficialEntry(string manifestUrl, string internalName)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, manifestUrl);
         request.Headers.UserAgent.ParseAdd("KR-Dalamud-PatchManager");
@@ -568,7 +611,7 @@ internal static class PendingPatchInspector
                ?? throw new DirectoryNotFoundException($"{module.Name} 설치 폴더를 찾지 못했습니다.");
     }
 
-    private static string FindCandidateDirectory(string extractedRoot, PatchModule module)
+    internal static string FindCandidateDirectory(string extractedRoot, PatchModule module)
     {
         var candidates = new[] { extractedRoot }.Concat(Directory.GetDirectories(extractedRoot, "*", SearchOption.AllDirectories));
         return candidates.FirstOrDefault(directory => module.Files.All(file => File.Exists(Path.Combine(directory, file))))
@@ -597,7 +640,7 @@ internal static class PendingPatchInspector
         }
     }
 
-    private static void Download(string url, string destination)
+    internal static void Download(string url, string destination)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.UserAgent.ParseAdd("KR-Dalamud-PatchManager");
@@ -608,10 +651,10 @@ internal static class PendingPatchInspector
         source.CopyTo(target);
     }
 
-    private static string? GetString(JsonElement element, string property)
+    internal static string? GetString(JsonElement element, string property)
         => element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
-    private static string HashFile(string path)
+    internal static string HashFile(string path)
     {
         using var stream = File.OpenRead(path);
         return Convert.ToHexString(SHA256.HashData(stream));
@@ -643,6 +686,115 @@ internal static class PendingPatchInspector
         IReadOnlyDictionary<string, string>? PatchedFileHashes = null,
         string? Outcome = null,
         string? Message = null);
+}
+
+internal static class OfficialPluginInstaller
+{
+    public static string InstallLatest(PatchModule module, string profileRoot)
+    {
+        if (!module.CanInstallOfficialUpdate || string.IsNullOrWhiteSpace(module.OfficialManifestUrl))
+        {
+            throw new InvalidOperationException($"{module.Name}: 공식 ZIP 설치를 지원하지 않습니다.");
+        }
+
+        PatchModule.EnsureGameStopped();
+
+        var root = Path.GetFullPath(profileRoot);
+        var hookDirectory = PatchModule.FindHookDirectory(root);
+        var entry = PendingPatchInspector.LoadOfficialEntry(module.OfficialManifestUrl, module.PluginFolder);
+        var versionText = PendingPatchInspector.GetString(entry, "AssemblyVersion")
+            ?? throw new InvalidOperationException("공식 매니페스트에 AssemblyVersion이 없습니다.");
+        _ = Version.Parse(versionText);
+        var downloadUrl = PendingPatchInspector.GetString(entry, "DownloadLinkUpdate")
+            ?? PendingPatchInspector.GetString(entry, "DownloadLinkInstall")
+            ?? throw new InvalidOperationException("공식 매니페스트에 다운로드 URL이 없습니다.");
+
+        var temporaryRoot = Path.Combine(Path.GetTempPath(), "KR-Dalamud-PatchManager", "install", module.Id, Guid.NewGuid().ToString("N"));
+        var pluginRoot = Path.Combine(root, "installedPlugins", module.PluginFolder);
+        var destination = Path.Combine(pluginRoot, versionText);
+        var stagingDestination = Path.Combine(pluginRoot, $".{versionText}.kr-staging-{Guid.NewGuid():N}");
+        var backupRoot = Path.Combine(root, "kr-patch-backups", module.PluginFolder, versionText, DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+        string? displacedDestination = null;
+
+        try
+        {
+            Directory.CreateDirectory(temporaryRoot);
+            var archive = Path.Combine(temporaryRoot, "official-release.zip");
+            PendingPatchInspector.Download(downloadUrl, archive);
+            var archiveHash = PendingPatchInspector.HashFile(archive);
+
+            var extracted = Path.Combine(temporaryRoot, "extracted");
+            ZipFile.ExtractToDirectory(archive, extracted);
+            var candidate = PendingPatchInspector.FindCandidateDirectory(extracted, module);
+            ValidateCandidateManifest(candidate, module, versionText);
+
+            var prepared = Path.Combine(temporaryRoot, "prepared");
+            PatchModule.CopyDirectory(candidate, prepared);
+            module.PatchAndVerifyDirectory(prepared, hookDirectory);
+
+            Directory.CreateDirectory(backupRoot);
+            PatchModule.CopyDirectory(candidate, backupRoot);
+            File.WriteAllText(
+                Path.Combine(backupRoot, "install.json"),
+                JsonSerializer.Serialize(new
+                {
+                    module = module.Id,
+                    version = versionText,
+                    downloadedAt = DateTimeOffset.Now,
+                    manifestUrl = module.OfficialManifestUrl,
+                    downloadUrl,
+                    archiveSha256 = archiveHash,
+                }, new JsonSerializerOptions { WriteIndented = true }));
+
+            Directory.CreateDirectory(pluginRoot);
+            PatchModule.CopyDirectory(prepared, stagingDestination);
+            module.WriteMarker(stagingDestination, versionText, backupRoot);
+
+            if (Directory.Exists(destination))
+            {
+                displacedDestination = Path.Combine(backupRoot, "previous-installed");
+                Directory.Move(destination, displacedDestination);
+            }
+
+            try
+            {
+                Directory.Move(stagingDestination, destination);
+            }
+            catch
+            {
+                if (displacedDestination != null && Directory.Exists(displacedDestination) && !Directory.Exists(destination))
+                {
+                    Directory.Move(displacedDestination, destination);
+                }
+
+                throw;
+            }
+
+            return $"{module.Name} {versionText}: 공식 ZIP 다운로드 · KR 패치 · 검증 · 설치 완료 (원본 백업: {backupRoot})";
+        }
+        finally
+        {
+            PatchModule.TryDeleteDirectory(stagingDestination);
+            PatchModule.TryDeleteDirectory(temporaryRoot);
+        }
+    }
+
+    private static void ValidateCandidateManifest(string candidateDirectory, PatchModule module, string expectedVersion)
+    {
+        var manifestPath = Path.Combine(candidateDirectory, module.PluginFolder + ".json");
+        if (!File.Exists(manifestPath))
+        {
+            throw new FileNotFoundException("공식 ZIP에서 플러그인 매니페스트를 찾지 못했습니다.", manifestPath);
+        }
+
+        using var manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
+        var internalName = PendingPatchInspector.GetString(manifest.RootElement, "InternalName");
+        var assemblyVersion = PendingPatchInspector.GetString(manifest.RootElement, "AssemblyVersion");
+        if (!string.Equals(internalName, module.PluginFolder, StringComparison.Ordinal) || !string.Equals(assemblyVersion, expectedVersion, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("공식 ZIP 매니페스트가 선택한 BossModReborn 버전과 일치하지 않습니다.");
+        }
+    }
 }
 
 internal sealed class PatchModule
@@ -725,6 +877,7 @@ internal sealed class PatchModule
     public string? LegacyMarker { get; }
     public string? OfficialManifestUrl { get; }
     public bool CanInspectUpdates => OfficialManifestUrl != null;
+    public bool CanInstallOfficialUpdate => Id == "bossmodreborn" && OfficialManifestUrl != null;
     private IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> OriginalHashesByVersion { get; }
     private readonly Action<string, string>? validateUnsupportedVersion;
     private string ManagerMarker => $"KR.Dalamud.PatchManager.{Id}.json";
@@ -1041,6 +1194,35 @@ internal sealed class PatchModule
         }
     }
 
+    internal void PatchAndVerifyDirectory(string pluginDirectory, string hookDirectory)
+    {
+        RequireSupportedOrValidateDirectory(pluginDirectory, hookDirectory);
+        if (patchInPlace == null)
+        {
+            throw new InvalidOperationException($"{Name}: 이 모듈은 공식 ZIP 설치 패치를 지원하지 않습니다.");
+        }
+
+        patchInPlace(pluginDirectory, hookDirectory);
+        if (!verify(pluginDirectory, hookDirectory))
+        {
+            throw new InvalidOperationException($"{Name}: 공식 ZIP KR 패치 검증에 실패했습니다.");
+        }
+    }
+
+    internal void WriteMarker(string pluginDirectory, string version, string backup)
+    {
+        var marker = new
+        {
+            patchManagerVersion = "0.2.25",
+            module = Id,
+            pluginVersion = version,
+            patchedAt = DateTimeOffset.Now,
+            backupDirectory = backup,
+            files = Files.ToDictionary(file => file, file => HashFile(Path.Combine(pluginDirectory, file))),
+        };
+        File.WriteAllText(Path.Combine(pluginDirectory, ManagerMarker), JsonSerializer.Serialize(marker, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
     public static void EnsureGameStopped()
     {
         var blocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -1098,6 +1280,22 @@ internal sealed class PatchModule
         }
 
         validateUnsupportedVersion(context.PluginDirectory, context.HookDirectory);
+    }
+
+    private void RequireSupportedOrValidateDirectory(string pluginDirectory, string hookDirectory)
+    {
+        var version = Path.GetFileName(Path.TrimEndingDirectorySeparator(pluginDirectory));
+        if (SupportedVersions.Contains(version, StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        if (validateUnsupportedVersion is null)
+        {
+            throw new InvalidOperationException($"{Name} {version}은(는) 지원하지 않습니다.");
+        }
+
+        validateUnsupportedVersion(pluginDirectory, hookDirectory);
     }
 
     private void RequireKnownOriginalHash(ModuleContext context)
@@ -1184,7 +1382,7 @@ internal sealed class PatchModule
         }
     }
 
-    private static void CopyDirectory(string sourceDirectory, string destinationDirectory)
+    internal static void CopyDirectory(string sourceDirectory, string destinationDirectory)
     {
         foreach (var sourcePath in Directory.EnumerateFileSystemEntries(sourceDirectory, "*", SearchOption.AllDirectories))
         {
@@ -1207,7 +1405,7 @@ internal sealed class PatchModule
         return Convert.ToHexString(SHA256.HashData(stream));
     }
 
-    private static void TryDeleteDirectory(string path)
+    internal static void TryDeleteDirectory(string path)
     {
         try
         {
