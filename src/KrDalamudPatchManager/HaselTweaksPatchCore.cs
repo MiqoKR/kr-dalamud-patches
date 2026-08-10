@@ -114,10 +114,6 @@ internal static class HaselTweaksPatchCore
         using (var structs = AssemblyDefinition.ReadAssembly(structsPath, new ReaderParameters { InMemory = true }))
         {
             RequireKoreanUiLayout(structs);
-            if (structs.Name.Version != new Version(7, 51, 0, 0))
-            {
-                throw new InvalidOperationException($"HaselTweaks FFXIVClientStructs assembly identity changed: {structs.Name.Version}.");
-            }
         }
 
         using var common = AssemblyDefinition.ReadAssembly(commonPath, new ReaderParameters { InMemory = true });
