@@ -49,7 +49,7 @@ internal static class HaselTweaksPatchCore
         using var compatible = AssemblyDefinition.ReadAssembly(compatibleHookPath, new ReaderParameters { InMemory = true });
         RequireKoreanUiLayout(compatible);
 
-        // HaselTweaks 49.2.1 references its bundled 7.51.0.0 assembly identity.
+        // HaselTweaks references its bundled ClientStructs assembly identity.
         // Preserve that identity while using the already validated KR Hook layout.
         compatible.Name.Version = original.Name.Version;
         compatible.Write(outputPath);
