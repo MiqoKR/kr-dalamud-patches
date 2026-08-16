@@ -968,7 +968,8 @@ internal sealed class PatchModule
                 {
                     ["Penumbra.GameData.dll"] = "D904B9A4E7C0159E9519EF3D1612FF16A30EB16DDC4206A717E1EA24037CD9BF",
                 },
-            }),
+            },
+            validateUnsupportedVersion: PenumbraPatchCore.ValidatePatchShape),
         new PatchModule(
             "haseltweaks", "HaselTweaks KR UI 호환성", "호환성", "HaselTweaks", new[] { "49.2.1.0", "49.2.3.0", "49.4.1.0", "49.4.2.0" }, new[] { "FFXIVClientStructs.dll", "HaselCommon.dll" }, "KR UI 관리자 오프셋 · AddonObserver 안정화",
             HaselTweaksPatchCore.IsPatched,
