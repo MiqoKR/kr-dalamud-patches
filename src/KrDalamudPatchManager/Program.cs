@@ -970,7 +970,7 @@ internal sealed class PatchModule
                 },
             }),
         new PatchModule(
-            "haseltweaks", "HaselTweaks KR UI 호환성", "호환성", "HaselTweaks", new[] { "49.2.1.0", "49.2.3.0", "49.4.1.0" }, new[] { "FFXIVClientStructs.dll", "HaselCommon.dll" }, "KR UI 관리자 오프셋 · AddonObserver 안정화",
+            "haseltweaks", "HaselTweaks KR UI 호환성", "호환성", "HaselTweaks", new[] { "49.2.1.0", "49.2.3.0", "49.4.1.0", "49.4.2.0" }, new[] { "FFXIVClientStructs.dll", "HaselCommon.dll" }, "KR UI 관리자 오프셋 · AddonObserver 안정화",
             HaselTweaksPatchCore.IsPatched,
             (source, hook, output) => HaselTweaksPatchCore.Patch(source, hook, output),
             officialManifestUrl: "https://raw.githubusercontent.com/Haselnussbomber/MyDalamudPlugins/main/repo.json",
@@ -990,6 +990,11 @@ internal sealed class PatchModule
                 {
                     ["FFXIVClientStructs.dll"] = "A3CD4DB48DFE6E0A993B08E4D560C7C45EF3E90EF57E3BE79A917AAE9FD891EF",
                     ["HaselCommon.dll"] = "79B46CE437D1617B1803DF9987490D079BA236C34D487D24B1235CF892BEC050",
+                },
+                ["49.4.2.0"] = new Dictionary<string, string>
+                {
+                    ["FFXIVClientStructs.dll"] = "749EE6D59D5B5346A1D77FD8DF217EA0203B252779C3259EDC3A0E425F5DF2B8",
+                    ["HaselCommon.dll"] = "53A64766587DF7011F6EDE137C33A590D4D4EC6979D810BC2DA7ACAACF4A7E9D",
                 },
             }),
         new PatchModule(
