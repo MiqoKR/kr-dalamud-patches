@@ -1003,6 +1003,8 @@ internal sealed class PatchModule
             "simpleheels", "Simple Heels KR 안정성", "호환성", "SimpleHeels", new[] { "0.11.1.8" }, new[] { "SimpleHeels.dll" }, "탑승 기울기 fallback · 수영 높이 보정 훅 비활성",
             SimpleHeelsPatchCore.IsPatched,
             patchInPlace: SimpleHeelsPatchCore.Patch,
+            needsUpgrade: SimpleHeelsPatchCore.NeedsClientStructAliasUpgrade,
+            upgradeInPlace: SimpleHeelsPatchCore.UpgradeClientStructAliases,
             officialManifestUrl: "https://raw.githubusercontent.com/Ottermandias/SeaOfStars/main/repo.json",
             originalHashesByVersion: new Dictionary<string, IReadOnlyDictionary<string, string>>
             {
@@ -1067,6 +1069,11 @@ internal sealed class PatchModule
                 return new ModuleStatus(context.Version, message, true, false, false, canRestore);
             }
 
+            if (needsUpgrade?.Invoke(context.PluginDirectory, context.HookDirectory) == true && upgradeInPlace != null)
+            {
+                return new ModuleStatus(context.Version, "기존 KR 패치 보완을 적용할 수 있습니다.", false, false, true, FindMarker(context) != null);
+            }
+
             if (!SupportedVersions.Contains(context.Version, StringComparer.Ordinal))
             {
                 if (validateUnsupportedVersion is null)
@@ -1082,11 +1089,6 @@ internal sealed class PatchModule
                     false,
                     true,
                     false);
-            }
-
-            if (needsUpgrade?.Invoke(context.PluginDirectory, context.HookDirectory) == true && upgradeInPlace != null)
-            {
-                return new ModuleStatus(context.Version, "표시용 KR 월드명 사전 보완을 적용할 수 있습니다.", false, false, true, FindMarker(context) != null);
             }
 
             RequireKnownOriginalHash(context);
@@ -1122,10 +1124,10 @@ internal sealed class PatchModule
             upgradeInPlace(context.PluginDirectory, context.HookDirectory);
             if (!verify(context.PluginDirectory, context.HookDirectory))
             {
-                throw new InvalidOperationException("표시용 KR 월드명 사전 보완 검증에 실패했습니다.");
+                throw new InvalidOperationException("기존 KR 패치 보완 검증에 실패했습니다.");
             }
 
-            return $"{Name}: 표시용 KR 월드명 사전 보완을 적용했습니다. 기존 원본 백업은 유지됩니다.";
+            return $"{Name}: 기존 KR 패치 보완을 적용했습니다. 기존 원본 백업은 유지됩니다.";
         }
 
         RequireKnownOriginalHash(context);
