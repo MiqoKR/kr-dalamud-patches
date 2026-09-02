@@ -49,6 +49,23 @@ internal static class GlamourerPatchCore
         }
     }
 
+    public static void ValidatePatchShape(string pluginDirectory, string hookDirectory)
+    {
+        var validationDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "KR-Dalamud-PatchManager",
+            "glamourer-shape-validation",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            Patch(pluginDirectory, hookDirectory, validationDirectory);
+        }
+        finally
+        {
+            TryDeleteDirectory(validationDirectory);
+        }
+    }
+
     // This portion is shared with Penumbra itself: Korean player-name validation and
     // Korean world-name resolution live in Penumbra.GameData.dll, not Glamourer.dll.
     internal static void PatchGameDataCompatibility(string pluginDirectory, string hookDirectory, string outputDirectory)
@@ -815,6 +832,19 @@ internal static class GlamourerPatchCore
         if (File.Exists(path))
         {
             File.Delete(path);
+        }
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+                Directory.Delete(path, recursive: true);
+        }
+        catch
+        {
+            // Validation data is disposable and never contains user files.
         }
     }
 }

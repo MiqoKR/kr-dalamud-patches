@@ -957,7 +957,8 @@ internal sealed class PatchModule
                     ["Glamourer.dll"] = "F9A8BC33FE275FE394B76B582664C0B8C6D3BE1436DFF25CAD65547966F5F430",
                     ["Penumbra.GameData.dll"] = "C176B4D6B9727B2AA98121B0157273CD6C51BA27E2C554E6D402B3A0B29DC551",
                 },
-            }),
+            },
+            validateUnsupportedVersion: GlamourerPatchCore.ValidatePatchShape),
         new PatchModule(
             "penumbra", "Penumbra KR 개인 할당", "호환성", "Penumbra", new[] { "1.7.0.5" }, new[] { "Penumbra.GameData.dll" }, "한국어 캐릭터명 · KR 월드 ID 인식",
             PenumbraPatchCore.IsPatched,
@@ -1009,7 +1010,8 @@ internal sealed class PatchModule
                 {
                     ["SimpleHeels.dll"] = "07859D6B9E76542F044BB144BDD4BDD3BAD95C6FF56F7C1F8DCC27280BB0C0BE",
                 },
-            }),
+            },
+            validateUnsupportedVersion: SimpleHeelsPatchCore.ValidatePatchShape),
         new PatchModule(
             "bossmodreborn", "BossModReborn KR 데이터", "KR 데이터", "BossModReborn", new[] { "7.5.1.26", "7.5.1.29", "7.5.1.32", "7.5.1.35", "7.5.5.0", "7.5.5.2", "7.5.5.5", "7.5.5.9" }, new[] { "BossModReborn.dll" }, "KR Lumina 시트 · legacy map-effect 제거",
             BossModPatchCore.IsPatched,

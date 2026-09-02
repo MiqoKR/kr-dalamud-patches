@@ -115,6 +115,25 @@ internal static class SimpleHeelsPatchCore
         }
     }
 
+    public static void ValidatePatchShape(string pluginDirectory, string hookDirectory)
+    {
+        var validationDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "KR-Dalamud-PatchManager",
+            "simpleheels-shape-validation",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            CopyDirectory(pluginDirectory, validationDirectory);
+            Patch(validationDirectory, hookDirectory);
+            Verify(validationDirectory, hookDirectory);
+        }
+        finally
+        {
+            TryDeleteDirectory(validationDirectory);
+        }
+    }
+
     private static void DisableFloatHeightHook(TypeDefinition plugin)
     {
         var field = plugin.Fields.FirstOrDefault(field => field.Name == FloatHeightHookField)
@@ -188,6 +207,37 @@ internal static class SimpleHeelsPatchCore
             {
                 yield return nested;
             }
+        }
+    }
+
+    private static void CopyDirectory(string sourceDirectory, string outputDirectory)
+    {
+        Directory.CreateDirectory(outputDirectory);
+        foreach (var sourcePath in Directory.EnumerateFileSystemEntries(sourceDirectory, "*", SearchOption.AllDirectories))
+        {
+            var outputPath = Path.Combine(outputDirectory, Path.GetRelativePath(sourceDirectory, sourcePath));
+            if (Directory.Exists(sourcePath))
+            {
+                Directory.CreateDirectory(outputPath);
+            }
+            else
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+                File.Copy(sourcePath, outputPath, overwrite: true);
+            }
+        }
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+                Directory.Delete(path, recursive: true);
+        }
+        catch
+        {
+            // Validation data is disposable and never contains user files.
         }
     }
 }
