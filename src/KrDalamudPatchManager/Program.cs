@@ -972,7 +972,7 @@ internal sealed class PatchModule
             },
             validateUnsupportedVersion: PenumbraPatchCore.ValidatePatchShape),
         new PatchModule(
-            "haseltweaks", "HaselTweaks KR UI 호환성", "호환성", "HaselTweaks", new[] { "49.2.1.0", "49.2.3.0", "49.4.1.0", "49.4.2.0" }, new[] { "FFXIVClientStructs.dll", "HaselCommon.dll" }, "KR UI 관리자 오프셋 · AddonObserver 안정화",
+            "haseltweaks", "HaselTweaks KR UI 호환성", "호환성", "HaselTweaks", new[] { "49.2.1.0", "49.2.3.0", "49.4.1.0", "49.4.2.0", "50.0.0.0" }, new[] { "FFXIVClientStructs.dll", "HaselCommon.dll" }, "KR UI 관리자 오프셋 · AddonObserver 안정화",
             HaselTweaksPatchCore.IsPatched,
             (source, hook, output) => HaselTweaksPatchCore.Patch(source, hook, output),
             officialManifestUrl: "https://raw.githubusercontent.com/Haselnussbomber/MyDalamudPlugins/main/repo.json",
@@ -998,7 +998,13 @@ internal sealed class PatchModule
                     ["FFXIVClientStructs.dll"] = "749EE6D59D5B5346A1D77FD8DF217EA0203B252779C3259EDC3A0E425F5DF2B8",
                     ["HaselCommon.dll"] = "53A64766587DF7011F6EDE137C33A590D4D4EC6979D810BC2DA7ACAACF4A7E9D",
                 },
-            }),
+                ["50.0.0.0"] = new Dictionary<string, string>
+                {
+                    ["FFXIVClientStructs.dll"] = "BA273669098D763B94D33BC3AE7EFD628F6C04E7B7B99BE5A91539BF3DE1C90B",
+                    ["HaselCommon.dll"] = "1D306287A5591E29BD8981D647E6CE66DDBFE8D45B86BA710EFDB165D595BC1A",
+                },
+            },
+            validateUnsupportedVersion: HaselTweaksPatchCore.ValidatePatchShape),
         new PatchModule(
             "simpleheels", "Simple Heels KR 안정성", "호환성", "SimpleHeels", new[] { "0.11.1.8" }, new[] { "SimpleHeels.dll" }, "탑승 기울기 fallback · 수영 높이 보정 훅 비활성",
             SimpleHeelsPatchCore.IsPatched,

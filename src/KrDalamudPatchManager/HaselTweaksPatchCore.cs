@@ -43,6 +43,23 @@ internal static class HaselTweaksPatchCore
         }
     }
 
+    public static void ValidatePatchShape(string pluginDirectory, string hookDirectory)
+    {
+        var validationDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "KR-Dalamud-PatchManager",
+            "haseltweaks-shape-validation",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            Patch(pluginDirectory, hookDirectory, validationDirectory);
+        }
+        finally
+        {
+            TryDeleteDirectory(validationDirectory);
+        }
+    }
+
     private static void PatchClientStructs(string originalPath, string compatibleHookPath, string outputPath)
     {
         using var original = AssemblyDefinition.ReadAssembly(originalPath, new ReaderParameters { InMemory = true });
@@ -152,6 +169,19 @@ internal static class HaselTweaksPatchCore
     {
         if (!File.Exists(path))
             throw new FileNotFoundException("Required HaselTweaks file was not found.", path);
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+                Directory.Delete(path, recursive: true);
+        }
+        catch
+        {
+            // Validation data is disposable and never contains user files.
+        }
     }
 
     private static InvalidOperationException Unsupported(string detail)
