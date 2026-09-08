@@ -134,18 +134,15 @@ internal static class CommonUiAddressPatchCore
         var gameExecutablePath = FindGameExecutable();
         var cacheVersion = ReadCacheRoot(cachePath)["Version"]?.GetValue<string>() ?? "버전 확인 불가";
         var hookGameVersion = ReadHookGameVersion(hook);
-        if (!string.Equals(cacheVersion, hookGameVersion, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException(
-                $"Dalamud 주소 캐시 버전이 현재 Hook과 다릅니다. Hook: {hookGameVersion}, 캐시: {cacheVersion}");
-        }
-
         var executableGameVersion = ReadExecutableGameVersion(gameExecutablePath);
         if (!string.Equals(cacheVersion, executableGameVersion, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException(
                 $"한섭 게임 실행 파일 버전이 Dalamud 주소 캐시와 다릅니다. 게임: {executableGameVersion}, 캐시: {cacheVersion}");
         }
+        var versionDisplay = string.Equals(cacheVersion, hookGameVersion, StringComparison.OrdinalIgnoreCase)
+            ? $"{Path.GetFileName(hook)} / {cacheVersion}"
+            : $"{Path.GetFileName(hook)} / {cacheVersion} (Hook 메타데이터 {hookGameVersion})";
         return new PatchContext(
             root,
             hook,
@@ -153,7 +150,7 @@ internal static class CommonUiAddressPatchCore
             cacheKey,
             gameExecutablePath,
             Path.Combine(hook, MarkerFileName),
-            $"{Path.GetFileName(hook)} / {cacheVersion}");
+            versionDisplay);
     }
 
     private static string FindGameExecutable()
@@ -393,7 +390,7 @@ internal static class CommonUiAddressPatchCore
         var gameFile = new FileInfo(context.GameExecutablePath);
         var marker = new CommonUiMarker
         {
-            PatchManagerVersion = "0.2.23",
+            PatchManagerVersion = "0.2.33",
             PatchedAt = DateTimeOffset.Now,
             CacheKey = context.CacheKey,
             ResolvedRva = resolution.TargetRva,
