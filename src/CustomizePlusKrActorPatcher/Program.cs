@@ -424,10 +424,10 @@ internal sealed class PatchContext
 
         var selected = candidates[0];
         var version = Path.GetFileName(selected.Directory);
-        if (!version.Equals(CustomizePlusPatchCore.SupportedVersion, StringComparison.Ordinal))
+        if (!CustomizePlusPatchCore.SupportedVersions.Contains(version, StringComparer.Ordinal))
         {
             throw new InvalidOperationException(
-                $"Customize+ {version}은 지원하지 않습니다. 현재 패처는 {CustomizePlusPatchCore.SupportedVersion} 전용입니다.");
+                $"Customize+ {version}은 지원하지 않습니다. 현재 지원: {string.Join(", ", CustomizePlusPatchCore.SupportedVersions)}");
         }
 
         return new PatchContext(fullProfileRoot, selected.Directory, FindHookDirectory(fullProfileRoot), version);
@@ -478,8 +478,8 @@ internal sealed class PatchContext
         {
             patchVersion = "0.1.0",
             customizePlusVersion = Version,
-            originalCustomizePlusSha256 = CustomizePlusPatchCore.OriginalCustomizePlusSha256,
-            originalGameDataSha256 = CustomizePlusPatchCore.OriginalGameDataSha256,
+            originalCustomizePlusSha256 = CustomizePlusPatchCore.GetOriginalHashes(Version).CustomizePlus,
+            originalGameDataSha256 = CustomizePlusPatchCore.GetOriginalHashes(Version).GameData,
             patchedGameDataSha256 = HashFile(patchedDll),
             patchedAt = DateTimeOffset.Now,
             backupDirectory,

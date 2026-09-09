@@ -10,9 +10,6 @@ internal static class HaselTweaksPatchCore
     private const string RaptureAtkModuleTypeName = "FFXIVClientStructs.FFXIV.Client.UI.RaptureAtkModule";
     private const string AddonObserverTypeName = "HaselCommon.Services.AddonObserver";
 
-    // The Korean 7.55 UI layout places the embedded manager 0x10 bytes earlier.
-    private const int KoreanRaptureAtkUnitManagerOffset = 0x13420;
-
     public static void Patch(string pluginDirectory, string hookDirectory, string outputDirectory)
     {
         RequireFile(Path.Combine(pluginDirectory, ClientStructsFileName));
@@ -64,7 +61,7 @@ internal static class HaselTweaksPatchCore
     {
         using var original = AssemblyDefinition.ReadAssembly(originalPath, new ReaderParameters { InMemory = true });
         using var compatible = AssemblyDefinition.ReadAssembly(compatibleHookPath, new ReaderParameters { InMemory = true });
-        RequireKoreanUiLayout(compatible);
+        _ = GetRaptureAtkUnitManagerOffset(compatible);
 
         // HaselTweaks references its bundled ClientStructs assembly identity.
         // Preserve that identity while using the already validated KR Hook layout.
@@ -77,8 +74,17 @@ internal static class HaselTweaksPatchCore
         using var assembly = AssemblyDefinition.ReadAssembly(sourcePath, new ReaderParameters { InMemory = true });
         var observer = assembly.MainModule.Types.SingleOrDefault(type => type.FullName == AddonObserverTypeName)
             ?? throw Unsupported("HaselCommon.Services.AddonObserver type was not found.");
-        var update = observer.Methods.SingleOrDefault(method => method.Name == "OnFrameworkUpdate" && method.HasBody)
-            ?? throw Unsupported("AddonObserver.OnFrameworkUpdate method was not found.");
+        var update = observer.Methods.SingleOrDefault(method => method.Name == "OnFrameworkUpdate" && method.HasBody);
+        if (update is null)
+        {
+            if (!HasModernVisibilityDetour(observer))
+            {
+                throw Unsupported("AddonObserver did not contain the legacy update loop or the modern visibility detour.");
+            }
+
+            assembly.Write(outputPath);
+            return;
+        }
 
         var getValueCalls = update.Body.Instructions
             .Where(instruction => IsAtkUnitPointerValueGetter(instruction.Operand as MethodReference))
@@ -129,15 +135,33 @@ internal static class HaselTweaksPatchCore
         RequireFile(commonPath);
 
         using (var structs = AssemblyDefinition.ReadAssembly(structsPath, new ReaderParameters { InMemory = true }))
+        using (var hookStructs = AssemblyDefinition.ReadAssembly(
+                   Path.Combine(hookDirectory, ClientStructsFileName),
+                   new ReaderParameters { InMemory = true }))
         {
-            RequireKoreanUiLayout(structs);
+            var actualOffset = GetRaptureAtkUnitManagerOffset(structs);
+            var expectedOffset = GetRaptureAtkUnitManagerOffset(hookStructs);
+            if (actualOffset != expectedOffset)
+            {
+                throw new InvalidOperationException(
+                    $"Expected current KR Hook RaptureAtkUnitManager offset 0x{expectedOffset:X}, actual 0x{actualOffset:X}.");
+            }
         }
 
         using var common = AssemblyDefinition.ReadAssembly(commonPath, new ReaderParameters { InMemory = true });
         var observer = common.MainModule.Types.SingleOrDefault(type => type.FullName == AddonObserverTypeName)
             ?? throw Unsupported("Patched AddonObserver type was not found.");
-        var update = observer.Methods.SingleOrDefault(method => method.Name == "OnFrameworkUpdate" && method.HasBody)
-            ?? throw Unsupported("Patched AddonObserver.OnFrameworkUpdate method was not found.");
+        var update = observer.Methods.SingleOrDefault(method => method.Name == "OnFrameworkUpdate" && method.HasBody);
+        if (update is null)
+        {
+            if (!HasModernVisibilityDetour(observer))
+            {
+                throw new InvalidOperationException("HaselTweaks modern AddonObserver visibility detour was not verified.");
+            }
+
+            return;
+        }
+
         var getValueCount = update.Body.Instructions.Count(instruction =>
             IsAtkUnitPointerValueGetter(instruction.Operand as MethodReference));
         if (getValueCount != 2)
@@ -146,17 +170,31 @@ internal static class HaselTweaksPatchCore
         }
     }
 
-    private static void RequireKoreanUiLayout(AssemblyDefinition assembly)
+    private static int GetRaptureAtkUnitManagerOffset(AssemblyDefinition assembly)
     {
         var module = assembly.MainModule.Types.SingleOrDefault(type => type.FullName == RaptureAtkModuleTypeName)
             ?? throw Unsupported("FFXIVClientStructs RaptureAtkModule type was not found.");
         var manager = module.Fields.SingleOrDefault(field => field.Name == "RaptureAtkUnitManager")
             ?? throw Unsupported("RaptureAtkUnitManager field was not found.");
-        if (manager.Offset != KoreanRaptureAtkUnitManagerOffset)
+        if (manager.Offset <= 0)
         {
-            throw new InvalidOperationException(
-                $"Expected KR RaptureAtkUnitManager offset 0x{KoreanRaptureAtkUnitManagerOffset:X}, actual 0x{manager.Offset:X}.");
+            throw Unsupported($"RaptureAtkUnitManager offset was invalid: 0x{manager.Offset:X}.");
         }
+
+        return manager.Offset;
+    }
+
+    private static bool HasModernVisibilityDetour(TypeDefinition observer)
+    {
+        var detour = observer.Methods.SingleOrDefault(method =>
+            method.Name == "UpdateAppliedVisibilityStateDetour" &&
+            method.HasBody &&
+            method.ReturnType.FullName == "System.Boolean" &&
+            method.Parameters.Count == 1 &&
+            method.Parameters[0].ParameterType.FullName ==
+                "FFXIVClientStructs.FFXIV.Component.GUI.AtkUnitBase*");
+        return detour is not null && !detour.Body.Instructions.Any(instruction =>
+            IsAtkUnitPointerValueGetter(instruction.Operand as MethodReference));
     }
 
     private static bool IsAtkUnitPointerValueGetter(MethodReference? reference)

@@ -79,14 +79,15 @@ internal sealed class PatchManagerForm : Form
     private readonly Button updateButton = new();
     private readonly Button inspectUpdateButton = new();
     private readonly Button installBossModButton = new();
+    private readonly Button installGatherBuddyButton = new();
     private readonly List<PatchModule> modules = PatchManagerEdition.VisibleModules();
     private bool busy;
 
     public PatchManagerForm()
     {
         Text = "KR Dalamud Patch Manager";
-        ClientSize = new Size(900, 570);
-        MinimumSize = new Size(916, 609);
+        ClientSize = new Size(900, 612);
+        MinimumSize = new Size(916, 651);
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 9F);
         BackColor = Color.FromArgb(245, 246, 248);
@@ -176,17 +177,23 @@ internal sealed class PatchManagerForm : Form
             installBossModButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             installBossModButton.Click += async (_, _) => await InstallBossModLatestAsync();
             Controls.Add(installBossModButton);
+
+            installGatherBuddyButton.Text = "GatherBuddy 최신 설치";
+            installGatherBuddyButton.SetBounds(748, 440, 134, 34);
+            installGatherBuddyButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            installGatherBuddyButton.Click += async (_, _) => await InstallGatherBuddyLatestAsync();
+            Controls.Add(installGatherBuddyButton);
         }
 
         Controls.Add(new Label
         {
             Text = "적용 전 게임·XIVLauncher·Dalamud를 모두 종료해야 합니다. 원본은 %APPDATA%\\XIVLauncherKR\\kr-patch-backups에 보관됩니다.",
-            Location = new Point(18, 441),
+            Location = new Point(18, 483),
             Size = new Size(850, 24),
             ForeColor = Color.FromArgb(82, 88, 96),
         });
 
-        logBox.SetBounds(18, 470, 864, 82);
+        logBox.SetBounds(18, 512, 864, 82);
         logBox.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         logBox.BackColor = Color.White;
         logBox.Font = new Font("Consolas", 9F);
@@ -344,18 +351,30 @@ internal sealed class PatchManagerForm : Form
     }
 
     private async Task InstallBossModLatestAsync()
+        => await InstallLatestAsync(
+            "bossmodreborn",
+            "BossModReborn",
+            "공식 BossModReborn 최신 ZIP을 내려받아 KR 패치와 검증을 마친 뒤 설치합니다. 기존 BossMod 설정은 유지됩니다.");
+
+    private async Task InstallGatherBuddyLatestAsync()
+        => await InstallLatestAsync(
+            "gatherbuddyreborn",
+            "GatherBuddyReborn",
+            "공식 GatherBuddyReborn 최신 ZIP을 내려받아 한국어 언어·낚시 호환 패치와 검증을 마친 뒤 설치합니다. 기존 GatherBuddy 설정은 유지됩니다.");
+
+    private async Task InstallLatestAsync(string moduleId, string displayName, string description)
     {
-        var module = modules.FirstOrDefault(candidate => candidate.Id == "bossmodreborn" && candidate.CanInstallOfficialUpdate);
+        var module = modules.FirstOrDefault(candidate => candidate.Id == moduleId && candidate.CanInstallOfficialUpdate);
         if (module is null)
         {
-            MessageBox.Show(this, "BossModReborn 최신 설치 기능을 찾지 못했습니다.", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, $"{displayName} 최신 설치 기능을 찾지 못했습니다.", Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 
         var answer = MessageBox.Show(
             this,
-            "게임, XIVLauncher, Dalamud가 모두 종료된 상태에서만 실행할 수 있습니다.\n\n공식 BossModReborn 최신 ZIP을 내려받아 KR 패치와 검증을 마친 뒤 설치합니다. 기존 BossMod 설정은 유지됩니다.\n\n계속할까요?",
-            "BossModReborn 최신 설치",
+            $"게임, XIVLauncher, Dalamud가 모두 종료된 상태에서만 실행할 수 있습니다.\n\n{description}\n\n계속할까요?",
+            $"{displayName} 최신 설치",
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Question);
         if (answer != DialogResult.Yes)
@@ -363,7 +382,7 @@ internal sealed class PatchManagerForm : Form
             return;
         }
 
-        await RunAsync("BossModReborn 최신 설치", () => new[]
+        await RunAsync($"{displayName} 최신 설치", () => new[]
         {
             OfficialPluginInstaller.InstallLatest(module, profileRootBox.Text),
         });
@@ -379,6 +398,7 @@ internal sealed class PatchManagerForm : Form
         updateButton.Enabled = !value;
         inspectUpdateButton.Enabled = !value;
         installBossModButton.Enabled = !value;
+        installGatherBuddyButton.Enabled = !value;
         UseWaitCursor = value;
     }
 
@@ -728,11 +748,12 @@ internal static class OfficialPluginInstaller
             ZipFile.ExtractToDirectory(archive, extracted);
             var candidate = PendingPatchInspector.FindCandidateDirectory(extracted, module);
             ValidateCandidateManifest(candidate, module, versionText);
+            module.RequireKnownOriginalHashes(candidate, versionText);
             PreservePluginManagementMetadata(candidate, pluginRoot, module, module.OfficialManifestUrl);
 
             var prepared = Path.Combine(temporaryRoot, "prepared");
             PatchModule.CopyDirectory(candidate, prepared);
-            module.PatchAndVerifyDirectory(prepared, hookDirectory);
+            module.PatchAndVerifyDirectory(prepared, hookDirectory, versionText);
 
             Directory.CreateDirectory(backupRoot);
             PatchModule.CopyDirectory(candidate, backupRoot);
@@ -794,7 +815,7 @@ internal static class OfficialPluginInstaller
         var assemblyVersion = PendingPatchInspector.GetString(manifest.RootElement, "AssemblyVersion");
         if (!string.Equals(internalName, module.PluginFolder, StringComparison.Ordinal) || !string.Equals(assemblyVersion, expectedVersion, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("공식 ZIP 매니페스트가 선택한 BossModReborn 버전과 일치하지 않습니다.");
+            throw new InvalidOperationException($"공식 ZIP 매니페스트가 선택한 {module.PluginFolder} 버전과 일치하지 않습니다.");
         }
     }
 
@@ -919,7 +940,7 @@ internal sealed class PatchModule
     public string? LegacyMarker { get; }
     public string? OfficialManifestUrl { get; }
     public bool CanInspectUpdates => OfficialManifestUrl != null;
-    public bool CanInstallOfficialUpdate => Id == "bossmodreborn" && OfficialManifestUrl != null;
+    public bool CanInstallOfficialUpdate => Id is "bossmodreborn" or "gatherbuddyreborn" && OfficialManifestUrl != null;
     private IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> OriginalHashesByVersion { get; }
     private readonly Action<string, string>? validateUnsupportedVersion;
     private string ManagerMarker => $"KR.Dalamud.PatchManager.{Id}.json";
@@ -927,12 +948,12 @@ internal sealed class PatchModule
     public static List<PatchModule> CreateAll() => new()
     {
         new PatchModule(
-            "common-ui", "Dalamud 공통 UI / AtkResNode", "공통 호환성", "공통 IsVisible 주소 자동 계산 · UI 기반 플러그인 일괄 호환",
+            "common-ui", "Dalamud 공통 UI / AtkResNode", "공통 호환성", "공통 IsVisible 호출형·직접형 주소 자동 계산 · UI 기반 플러그인 일괄 호환",
             CommonUiAddressPatchCore.GetStatus,
             CommonUiAddressPatchCore.Apply,
             CommonUiAddressPatchCore.Restore),
         new PatchModule(
-            "customizeplus", "Customize+ KR 캐릭터 인식", "호환성", "CustomizePlus", new[] { "2.2.0.3" }, new[] { "Penumbra.GameData.dll" }, "한국어 단일 이름 · KR 월드 ID 인식",
+            "customizeplus", "Customize+ KR 캐릭터 인식", "호환성", "CustomizePlus", new[] { "2.2.0.3", "2.2.1.1" }, new[] { "Penumbra.GameData.dll" }, "한국어 단일 이름 · KR 월드 ID 인식",
             (plugin, hook) => TryVerify(() => CustomizePlusPatchCore.Verify(plugin, hook)),
             (source, hook, output) => CustomizePlusPatchCore.Patch(source, hook, output),
             needsUpgrade: CustomizePlusPatchCore.NeedsActorRuntimeUpgrade,
@@ -972,7 +993,7 @@ internal sealed class PatchModule
             },
             validateUnsupportedVersion: PenumbraPatchCore.ValidatePatchShape),
         new PatchModule(
-            "haseltweaks", "HaselTweaks KR UI 호환성", "호환성", "HaselTweaks", new[] { "49.2.1.0", "49.2.3.0", "49.4.1.0", "49.4.2.0", "50.0.0.0" }, new[] { "FFXIVClientStructs.dll", "HaselCommon.dll" }, "KR UI 관리자 오프셋 · AddonObserver 안정화",
+            "haseltweaks", "HaselTweaks KR UI 호환성", "호환성", "HaselTweaks", new[] { "49.2.1.0", "49.2.3.0", "49.4.1.0", "49.4.2.0", "50.0.0.0", "50.0.1.0" }, new[] { "FFXIVClientStructs.dll", "HaselCommon.dll" }, "현재 KR Hook UI 관리자 오프셋 · AddonObserver 안정화",
             HaselTweaksPatchCore.IsPatched,
             (source, hook, output) => HaselTweaksPatchCore.Patch(source, hook, output),
             officialManifestUrl: "https://raw.githubusercontent.com/Haselnussbomber/MyDalamudPlugins/main/repo.json",
@@ -1002,6 +1023,11 @@ internal sealed class PatchModule
                 {
                     ["FFXIVClientStructs.dll"] = "BA273669098D763B94D33BC3AE7EFD628F6C04E7B7B99BE5A91539BF3DE1C90B",
                     ["HaselCommon.dll"] = "1D306287A5591E29BD8981D647E6CE66DDBFE8D45B86BA710EFDB165D595BC1A",
+                },
+                ["50.0.1.0"] = new Dictionary<string, string>
+                {
+                    ["FFXIVClientStructs.dll"] = "F6D20570A4608EBD34DE0C8D166F41971CFE95EFC2E6D31729108372A306A520",
+                    ["HaselCommon.dll"] = "CB5957BF5C356ED6F38A6A086C16FEC5F67C2BC576E23E910A7369CC30B2FC80",
                 },
             },
             validateUnsupportedVersion: HaselTweaksPatchCore.ValidatePatchShape),
@@ -1037,7 +1063,7 @@ internal sealed class PatchModule
             },
             validateUnsupportedVersion: BossModPatchCore.ValidatePatchShape),
         new PatchModule(
-            "gatherbuddyreborn", "GatherBuddyReborn KR 데이터", "KR 데이터", "GatherBuddyReborn", new[] { "7.5.1.0", "7.5.1.1", "7.5.5.0" }, new[] { "GatherBuddy.GameData.dll", "GatherBuddyReborn.dll" }, "언어 fallback · 낚시 Regex fallback",
+            "gatherbuddyreborn", "GatherBuddyReborn KR 데이터", "KR 데이터", "GatherBuddyReborn", new[] { "7.5.1.0", "7.5.1.1", "7.5.5.0", "7.5.5.3" }, new[] { "GatherBuddy.GameData.dll", "GatherBuddyReborn.dll" }, "언어 fallback · 낚시 Regex fallback",
             GatherBuddyPatchCore.IsPatched,
             (source, hook, output) => GatherBuddyPatchCore.Patch(source, output, hook),
             officialManifestUrl: "https://raw.githubusercontent.com/FFXIV-CombatReborn/CombatRebornRepo/main/pluginmaster.json",
@@ -1052,6 +1078,11 @@ internal sealed class PatchModule
                 {
                     ["GatherBuddy.GameData.dll"] = "EDFA515789D00892210A5BB4F1D4BD9A31488B59604FA8406C3A1039378A70B5",
                     ["GatherBuddyReborn.dll"] = "3B4334885D7F0419414620C7AC47A87E9A874AB45FC04851A09271D3F267D7F0",
+                },
+                ["7.5.5.3"] = new Dictionary<string, string>
+                {
+                    ["GatherBuddy.GameData.dll"] = "5D86815E72E3874118C89BCAC447B09EA4D3093AD79F9AFDD687F5E2183476A3",
+                    ["GatherBuddyReborn.dll"] = "BBEC37E9FB2835F4FB2EFC0AF5B5DCD1D6379859664EE507804E03D3710051DD",
                 },
             }),
     };
@@ -1257,15 +1288,31 @@ internal sealed class PatchModule
         }
     }
 
-    internal void PatchAndVerifyDirectory(string pluginDirectory, string hookDirectory)
+    internal void PatchAndVerifyDirectory(string pluginDirectory, string hookDirectory, string version)
     {
-        RequireSupportedOrValidateDirectory(pluginDirectory, hookDirectory);
-        if (patchInPlace == null)
+        RequireSupportedOrValidateDirectory(pluginDirectory, hookDirectory, version);
+        if (patchInPlace != null)
+        {
+            patchInPlace(pluginDirectory, hookDirectory);
+        }
+        else if (patchToStaging != null)
+        {
+            var staging = Path.Combine(Path.GetTempPath(), "KR-Dalamud-PatchManager", "official-install-patch", Id, Guid.NewGuid().ToString("N"));
+            try
+            {
+                patchToStaging(pluginDirectory, hookDirectory, staging);
+                CopyFiles(staging, pluginDirectory, Files);
+            }
+            finally
+            {
+                TryDeleteDirectory(staging);
+            }
+        }
+        else
         {
             throw new InvalidOperationException($"{Name}: 이 모듈은 공식 ZIP 설치 패치를 지원하지 않습니다.");
         }
 
-        patchInPlace(pluginDirectory, hookDirectory);
         if (!verify(pluginDirectory, hookDirectory))
         {
             throw new InvalidOperationException($"{Name}: 공식 ZIP KR 패치 검증에 실패했습니다.");
@@ -1345,9 +1392,8 @@ internal sealed class PatchModule
         validateUnsupportedVersion(context.PluginDirectory, context.HookDirectory);
     }
 
-    private void RequireSupportedOrValidateDirectory(string pluginDirectory, string hookDirectory)
+    private void RequireSupportedOrValidateDirectory(string pluginDirectory, string hookDirectory, string version)
     {
-        var version = Path.GetFileName(Path.TrimEndingDirectorySeparator(pluginDirectory));
         if (SupportedVersions.Contains(version, StringComparer.Ordinal))
         {
             return;
@@ -1362,18 +1408,21 @@ internal sealed class PatchModule
     }
 
     private void RequireKnownOriginalHash(ModuleContext context)
+        => RequireKnownOriginalHashes(context.PluginDirectory, context.Version);
+
+    internal void RequireKnownOriginalHashes(string pluginDirectory, string version)
     {
-        if (!OriginalHashesByVersion.TryGetValue(context.Version, out var expectedHashes))
+        if (!OriginalHashesByVersion.TryGetValue(version, out var expectedHashes))
         {
             return;
         }
 
         foreach (var (file, expectedHash) in expectedHashes)
         {
-            var actualHash = HashFile(Path.Combine(context.PluginDirectory, file));
+            var actualHash = HashFile(Path.Combine(pluginDirectory, file));
             if (!actualHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidOperationException($"{Name} {context.Version}의 {file} 원본 SHA-256이 검증값과 다릅니다.");
+                throw new InvalidOperationException($"{Name} {version}의 {file} 원본 SHA-256이 검증값과 다릅니다.");
             }
         }
     }

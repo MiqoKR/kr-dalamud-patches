@@ -9,6 +9,15 @@ internal static class CustomizePlusPatchCore
     public const string SupportedVersion = "2.2.0.3";
     public const string OriginalCustomizePlusSha256 = "3F4396A2A83E392E69517EBCAA19B8AEF57FA3604F7A5E188A4306B6738134C7";
     public const string OriginalGameDataSha256 = "7CE2D315AA10292FA3A241107FB9DE6CD38C1BE71EB25E1099BC0613BD8682A4";
+    public static readonly IReadOnlyCollection<string> SupportedVersions = new[] { "2.2.0.3", "2.2.1.1" };
+    private static readonly IReadOnlyDictionary<string, (string CustomizePlus, string GameData)> OriginalHashesByVersion =
+        new Dictionary<string, (string CustomizePlus, string GameData)>(StringComparer.Ordinal)
+        {
+            ["2.2.0.3"] = (OriginalCustomizePlusSha256, OriginalGameDataSha256),
+            ["2.2.1.1"] = (
+                "F3EDFF0E6294D0EF16F0A8B8A1E81CCEFAC39F8EA479056B29172CBCC7DABC32",
+                "3062993E96133800DBE4170258757F571314B0C8B343FE2D95A2D2652852E974"),
+        };
 
     public static void Patch(string sourcePluginDirectory, string hookDirectory, string outputDirectory)
     {
@@ -122,9 +131,16 @@ internal static class CustomizePlusPatchCore
         RequireFile(customizePlusDll);
         RequireFile(gameDataDll);
 
-        AssertSha256(customizePlusDll, OriginalCustomizePlusSha256, "CustomizePlus.dll");
-        AssertSha256(gameDataDll, OriginalGameDataSha256, "Penumbra.GameData.dll");
+        var version = Path.GetFileName(Path.TrimEndingDirectorySeparator(pluginDirectory));
+        var hashes = GetOriginalHashes(version);
+        AssertSha256(customizePlusDll, hashes.CustomizePlus, "CustomizePlus.dll");
+        AssertSha256(gameDataDll, hashes.GameData, "Penumbra.GameData.dll");
     }
+
+    public static (string CustomizePlus, string GameData) GetOriginalHashes(string version)
+        => OriginalHashesByVersion.TryGetValue(version, out var hashes)
+            ? hashes
+            : throw Unsupported($"Customize+ {version} 원본 해시가 등록되지 않았습니다.");
 
     private static void PatchKoreanActorValidation(string dllPath, string[] dependencyDirectories)
     {

@@ -15,6 +15,7 @@ internal static class CommonUiAddressPatchCore
     private const string MarkerFileName = "KR.Dalamud.PatchManager.common-ui.json";
     private const string BackupFolderName = "DalamudCommonUi";
     private const string AtkResNodeTypeName = "FFXIVClientStructs.FFXIV.Component.GUI.AtkResNode";
+    private const string IsVisibleMethodAddressName = AtkResNodeTypeName + ".IsVisible";
     private static readonly byte?[] KoreanIsVisibleCallerPattern =
     {
         0xE8, null, null, null, null, 0x3C, 0x01, 0x75, 0x02,
@@ -84,7 +85,7 @@ internal static class CommonUiAddressPatchCore
 
         VerifyCachedRva(context.CachePath, context.CacheKey, resolution.TargetRva);
         WriteMarker(context, backupPath, resolution);
-        return $"Dalamud 공통 UI/AtkResNode: 적용 완료 (RVA 0x{resolution.TargetRva:X}, 교차검증 {resolution.CallerCount}개)";
+        return $"Dalamud 공통 UI/AtkResNode: 적용 완료 (RVA 0x{resolution.TargetRva:X}, 주소 근거 {resolution.CallerCount}개)";
     }
 
     public static string Restore(string profileRoot)
@@ -183,18 +184,35 @@ internal static class CommonUiAddressPatchCore
             ?? throw new InvalidDataException("FFXIVClientStructs에서 AtkResNode.Addresses를 찾지 못했습니다.");
         var constructor = addresses.Methods.SingleOrDefault(method => method.Name == ".cctor" && method.HasBody)
             ?? throw new InvalidDataException("AtkResNode.Addresses 초기화 코드를 찾지 못했습니다.");
-        var signatures = constructor.Body.Instructions
-            .Where(instruction => instruction.OpCode == OpCodes.Ldstr)
-            .Select(instruction => instruction.Operand as string)
-            .Where(signature => signature?.StartsWith("E8 ?? ?? ?? ?? 3C 01 75 ", StringComparison.Ordinal) == true)
-            .Distinct(StringComparer.Ordinal)
+        var instructions = constructor.Body.Instructions;
+        var addressNames = instructions
+            .Where(instruction => instruction.OpCode == OpCodes.Ldstr &&
+                string.Equals(instruction.Operand as string, IsVisibleMethodAddressName, StringComparison.Ordinal))
             .ToArray();
-        if (signatures.Length != 1)
+        if (addressNames.Length != 1)
         {
-            throw new InvalidDataException($"AtkResNode.IsVisible 주소 정의를 하나로 확정하지 못했습니다. 후보: {signatures.Length}개");
+            throw new InvalidDataException($"AtkResNode.IsVisible 주소 이름을 하나로 확정하지 못했습니다. 후보: {addressNames.Length}개");
         }
 
-        return signatures[0] + "+relfollow[1]";
+        var signature = addressNames[0].Next;
+        while (signature is not null && signature.OpCode != OpCodes.Ldstr)
+        {
+            signature = signature.Next;
+        }
+
+        var value = signature?.Operand as string
+            ?? throw new InvalidDataException("AtkResNode.IsVisible 시그니처 문자열을 찾지 못했습니다.");
+        if (value.StartsWith("E8 ?? ?? ?? ?? 3C 01 75 ", StringComparison.Ordinal))
+        {
+            return value + "+relfollow[1]";
+        }
+
+        if (value.StartsWith("48 85 C9 74 ?? F7 81 AC 00 00 00 00 00 10 00 74 ", StringComparison.Ordinal))
+        {
+            return value;
+        }
+
+        throw new InvalidDataException($"지원하지 않는 AtkResNode.IsVisible 시그니처 형식입니다: {value}");
     }
 
     private static AddressResolution ResolveIsVisible(string executablePath)
@@ -230,23 +248,43 @@ internal static class CommonUiAddressPatchCore
             .OrderByDescending(group => group.Count)
             .ThenBy(group => group.Target)
             .ToArray();
-        if (groups.Length == 0 || groups[0].Count < 2)
+        if (groups.Length > 0 && groups[0].Count >= 2)
         {
-            throw new InvalidDataException("AtkResNode.IsVisible 주소를 교차검증하지 못했습니다. 일치 호출이 2개 이상 필요합니다.");
+            if (groups.Length > 1 && groups[1].Count == groups[0].Count)
+            {
+                throw new InvalidDataException("AtkResNode.IsVisible 주소 후보가 둘 이상이라 안전하게 적용할 수 없습니다.");
+            }
+
+            var targetOffset = RvaToFileOffset(headers.SectionHeaders, groups[0].Target);
+            if (!Matches(bytes, targetOffset, KoreanIsVisibleTargetPattern))
+            {
+                throw new InvalidDataException("AtkResNode.IsVisible 대상 함수 본문이 검증된 한섭 구조와 다릅니다.");
+            }
+
+            return new AddressResolution(groups[0].Target, groups[0].Count, ComputeSha256(executablePath));
         }
 
-        if (groups.Length > 1 && groups[1].Count == groups[0].Count)
+        var directOffsets = new List<int>();
+        for (var offset = 0; offset <= bytes.Length - KoreanIsVisibleTargetPattern.Length; offset++)
         {
-            throw new InvalidDataException("AtkResNode.IsVisible 주소 후보가 둘 이상이라 안전하게 적용할 수 없습니다.");
+            if (Matches(bytes, offset, KoreanIsVisibleTargetPattern))
+            {
+                directOffsets.Add(offset);
+            }
         }
 
-        var targetOffset = RvaToFileOffset(headers.SectionHeaders, groups[0].Target);
-        if (!Matches(bytes, targetOffset, KoreanIsVisibleTargetPattern))
+        if (directOffsets.Count != 1)
         {
-            throw new InvalidDataException("AtkResNode.IsVisible 대상 함수 본문이 검증된 한섭 7.55 구조와 다릅니다.");
+            throw new InvalidDataException($"AtkResNode.IsVisible 직접 함수 시그니처를 하나로 확정하지 못했습니다. 후보: {directOffsets.Count}개");
         }
 
-        return new AddressResolution(groups[0].Target, groups[0].Count, ComputeSha256(executablePath));
+        var directRva = FileOffsetToRva(headers.SectionHeaders, directOffsets[0]);
+        if (!IsExecutableRva(headers.SectionHeaders, directRva))
+        {
+            throw new InvalidDataException("AtkResNode.IsVisible 직접 함수 시그니처가 실행 코드 영역 밖에 있습니다.");
+        }
+
+        return new AddressResolution(directRva, 1, ComputeSha256(executablePath));
     }
 
     private static bool Matches(byte[] bytes, int offset, IReadOnlyList<byte?> pattern)
@@ -390,7 +428,7 @@ internal static class CommonUiAddressPatchCore
         var gameFile = new FileInfo(context.GameExecutablePath);
         var marker = new CommonUiMarker
         {
-            PatchManagerVersion = "0.2.33",
+            PatchManagerVersion = "0.2.34",
             PatchedAt = DateTimeOffset.Now,
             CacheKey = context.CacheKey,
             ResolvedRva = resolution.TargetRva,

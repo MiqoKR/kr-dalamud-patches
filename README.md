@@ -6,23 +6,23 @@
 
 | 분류 | 모듈 | 상태 |
 | --- | --- | --- |
-| 호환성 | Customize+ KR 캐릭터 인식 | 단일 이름 · 로비 Actor fallback · Bone Editor 검증 완료 |
+| 호환성 | Customize+ KR 캐릭터 인식 | 2.2.1.1 단일 이름 · 로비 Actor fallback · Bone Editor 검증 완료 |
 | 호환성 | Glamourer KR | 1.7.0.2 Actors 복구 격리 검증 완료 |
 | 호환성 | Penumbra KR 개인 할당 | 한국어 캐릭터명 · KR 월드 ID 격리 검증 완료 |
-| 공통 호환성 | Dalamud 공통 UI / AtkResNode | 한섭 7.55 IsVisible 주소 자동 계산·캐시 적용·복원 검증 완료 |
-| 호환성 | HaselTweaks KR UI 호환성 | 49.2.1.0 · 49.2.3.0 KR UI 관리자 오프셋 · AddonObserver 안정화 검증 완료 |
+| 공통 호환성 | Dalamud 공통 UI / AtkResNode | 한섭 7.56 IsVisible 직접 시그니처 주소 자동 계산·캐시 적용·복원 검증 완료 |
+| 호환성 | HaselTweaks KR UI 호환성 | 50.0.1.0 현재 KR Hook UI 관리자 오프셋 · AddonObserver 안정화 검증 완료 |
 | 호환성 | Simple Heels KR 안정성 | 0.11.1.8 격리 검증 완료 |
 | KR 데이터 | BossModReborn KR | 7.5.5.9 격리 검증 완료 |
-| KR 데이터 | GatherBuddyReborn KR | 7.5.5.0 격리 검증 완료 |
+| KR 데이터 | GatherBuddyReborn KR | 7.5.5.3 격리 검증 완료 |
 
 Patch Manager의 `검증 성공 조건` 열은 단순 파일 존재 여부가 아니라, 각 모듈이 실제로 검사한 패치 효과를 표시합니다.
 
 | 모듈 | 검증 성공 조건 |
 | --- | --- |
-| Dalamud 공통 UI / AtkResNode | 한섭 실행 파일의 호출 2개가 같은 함수로 연결되고 대상 함수 본문까지 일치 |
+| Dalamud 공통 UI / AtkResNode | 호출형은 동일 함수 호출 2개와 본문을, 직접형은 유일한 함수 본문 시그니처를 검증 |
 | Customize+ | 한국어 단일 캐릭터명 · KR 월드 ID · 로비 Actor fallback · Bone Editor 단일 이름 안전 처리 |
 | Glamourer | 한국어 캐릭터 조건과 CreateNewModel 호환 |
-| HaselTweaks | KR RaptureAtkUnitManager 오프셋 · AddonObserver 단일 포인터 읽기 |
+| HaselTweaks | 현재 KR Hook과 동일한 RaptureAtkUnitManager 오프셋 · AddonObserver 단일 포인터 읽기 |
 | Simple Heels | 탑승 기울기 필드 fallback · CalculateFloatHeight 훅 비활성 |
 | BossModReborn | KR Lumina 시트 호출과 legacy map-effect 참조 제거 |
 | GatherBuddyReborn | 언어 fallback 및 낚시 Regex fallback |
@@ -41,7 +41,7 @@ Glamourer `1.7.0.1`은 격리 복사본에서 KR 패치 적용·검증을 통과
 
 `업데이트 확인`은 GitHub의 최신 Patch Manager 릴리스를 조회합니다. 새 버전을 선택하면 ZIP의 SHA-256을 확인한 뒤 현재 실행 파일을 교체하고 자동으로 다시 시작합니다.
 
-BossModReborn, GatherBuddyReborn, Simple Heels는 `새 버전 검사`를 지원합니다. 이 기능은 각 공식 매니페스트의 최신 ZIP을 **임시 폴더에만** 내려받아 기존 패치 로직을 적용·검증하고, 결과·원본 SHA-256·오류를 `%APPDATA%\\XIVLauncherKR\\kr-patch-reports`에 기록합니다. 실제 설치된 플러그인 파일은 검사 과정에서 변경하지 않습니다.
+BossModReborn, GatherBuddyReborn, Simple Heels는 `새 버전 검사`를 지원합니다. 이 기능은 각 공식 매니페스트의 최신 ZIP을 **임시 폴더에만** 내려받아 기존 패치 로직을 적용·검증하고, 결과·원본 SHA-256·오류를 `%APPDATA%\\XIVLauncherKR\\kr-patch-reports`에 기록합니다. 실제 설치된 플러그인 파일은 검사 과정에서 변경하지 않습니다. 정식판에서는 `BossMod 최신 설치`와 `GatherBuddy 최신 설치` 버튼으로 공식 최신 ZIP을 내려받아 원본 DLL 해시와 KR 패치 결과를 검증한 뒤 백업·설치할 수 있습니다.
 
 ## 현재 제공 모듈
 
