@@ -88,7 +88,7 @@ internal sealed class PatchManagerForm : Form
 
     public PatchManagerForm()
     {
-        Text = $"KR Dalamud Patch Manager v{DisplayVersion}";
+        Text = "KR Dalamud Patch Manager";
         ClientSize = new Size(900, 612);
         MinimumSize = new Size(916, 651);
         StartPosition = FormStartPosition.CenterScreen;
@@ -108,11 +108,21 @@ internal sealed class PatchManagerForm : Form
         var header = new Panel { BackColor = Color.FromArgb(45, 48, 54), Dock = DockStyle.Top, Height = 72 };
         header.Controls.Add(new Label
         {
-            Text = $"KR Dalamud Patch Manager v{DisplayVersion}",
+            Text = "KR Dalamud Patch Manager",
             ForeColor = Color.White,
             Font = new Font("Segoe UI Semibold", 16F),
             Location = new Point(18, 10),
             AutoSize = true,
+        });
+        header.Controls.Add(new Label
+        {
+            Text = $"v{DisplayVersion}",
+            ForeColor = Color.FromArgb(195, 200, 208),
+            Font = new Font("Segoe UI Semibold", 10F),
+            Location = new Point(ClientSize.Width - 138, 13),
+            Size = new Size(118, 28),
+            TextAlign = ContentAlignment.MiddleRight,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
         });
         header.Controls.Add(new Label
         {
