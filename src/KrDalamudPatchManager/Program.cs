@@ -69,6 +69,9 @@ internal static class Program
 
 internal sealed class PatchManagerForm : Form
 {
+    private static readonly string DisplayVersion =
+        typeof(PatchManagerForm).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+
     private readonly TextBox profileRootBox = new();
     private readonly ListView modulesView = new();
     private readonly TextBox logBox = new();
@@ -85,7 +88,7 @@ internal sealed class PatchManagerForm : Form
 
     public PatchManagerForm()
     {
-        Text = "KR Dalamud Patch Manager";
+        Text = $"KR Dalamud Patch Manager v{DisplayVersion}";
         ClientSize = new Size(900, 612);
         MinimumSize = new Size(916, 651);
         StartPosition = FormStartPosition.CenterScreen;
@@ -105,7 +108,7 @@ internal sealed class PatchManagerForm : Form
         var header = new Panel { BackColor = Color.FromArgb(45, 48, 54), Dock = DockStyle.Top, Height = 72 };
         header.Controls.Add(new Label
         {
-            Text = "KR Dalamud Patch Manager",
+            Text = $"KR Dalamud Patch Manager v{DisplayVersion}",
             ForeColor = Color.White,
             Font = new Font("Segoe UI Semibold", 16F),
             Location = new Point(18, 10),
