@@ -119,10 +119,10 @@ internal sealed class PatchManagerForm : Form
             Text = $"v{DisplayVersion}",
             ForeColor = Color.FromArgb(195, 200, 208),
             Font = new Font("Segoe UI Semibold", 10F),
-            Location = new Point(ClientSize.Width - 138, 13),
-            Size = new Size(118, 28),
-            TextAlign = ContentAlignment.MiddleRight,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right,
+            Dock = DockStyle.Right,
+            Width = 120,
+            TextAlign = ContentAlignment.TopRight,
+            Padding = new Padding(0, 14, 18, 0),
         });
         header.Controls.Add(new Label
         {
@@ -159,40 +159,40 @@ internal sealed class PatchManagerForm : Form
         Controls.Add(modulesView);
 
         applyButton.Text = "선택 항목 적용";
-        applyButton.SetBounds(18, 398, 150, 34);
+        applyButton.SetBounds(18, 398, 116, 32);
         applyButton.Click += async (_, _) => await ApplySelectedAsync();
         Controls.Add(applyButton);
 
         restoreButton.Text = "선택 항목 복원";
-        restoreButton.SetBounds(176, 398, 150, 34);
+        restoreButton.SetBounds(140, 398, 116, 32);
         restoreButton.Click += async (_, _) => await RestoreSelectedAsync();
         Controls.Add(restoreButton);
 
         refreshButton.Text = "상태 새로고침";
-        refreshButton.SetBounds(334, 398, 130, 34);
+        refreshButton.SetBounds(262, 398, 116, 32);
         refreshButton.Click += (_, _) => RefreshModules();
         Controls.Add(refreshButton);
 
         updateButton.Text = "업데이트 확인";
-        updateButton.SetBounds(472, 398, 130, 34);
+        updateButton.SetBounds(384, 398, 116, 32);
         updateButton.Click += async (_, _) => await CheckForUpdateAsync();
         Controls.Add(updateButton);
 
         if (!PatchManagerEdition.IsLite)
         {
             inspectUpdateButton.Text = "새 버전 검사";
-            inspectUpdateButton.SetBounds(610, 398, 130, 34);
+            inspectUpdateButton.SetBounds(506, 398, 112, 32);
             inspectUpdateButton.Click += async (_, _) => await InspectSelectedUpdatesAsync();
             Controls.Add(inspectUpdateButton);
 
             installBossModButton.Text = "BossMod 최신 설치";
-            installBossModButton.SetBounds(748, 398, 134, 34);
+            installBossModButton.SetBounds(624, 398, 124, 32);
             installBossModButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             installBossModButton.Click += async (_, _) => await InstallBossModLatestAsync();
             Controls.Add(installBossModButton);
 
             installGatherBuddyButton.Text = "GatherBuddy 최신 설치";
-            installGatherBuddyButton.SetBounds(748, 440, 134, 34);
+            installGatherBuddyButton.SetBounds(754, 398, 128, 32);
             installGatherBuddyButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             installGatherBuddyButton.Click += async (_, _) => await InstallGatherBuddyLatestAsync();
             Controls.Add(installGatherBuddyButton);
@@ -201,12 +201,12 @@ internal sealed class PatchManagerForm : Form
         Controls.Add(new Label
         {
             Text = "적용 전 게임·XIVLauncher·Dalamud를 모두 종료해야 합니다. 원본은 %APPDATA%\\XIVLauncherKR\\kr-patch-backups에 보관됩니다.",
-            Location = new Point(18, 483),
+            Location = new Point(18, 443),
             Size = new Size(850, 24),
             ForeColor = Color.FromArgb(82, 88, 96),
         });
 
-        logBox.SetBounds(18, 512, 864, 82);
+        logBox.SetBounds(18, 472, 864, 122);
         logBox.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         logBox.BackColor = Color.White;
         logBox.Font = new Font("Consolas", 9F);
@@ -1337,7 +1337,7 @@ internal sealed class PatchModule
     {
         var marker = new
         {
-            patchManagerVersion = "0.2.35",
+            patchManagerVersion = "0.2.36",
             module = Id,
             pluginVersion = version,
             patchedAt = DateTimeOffset.Now,
@@ -1457,7 +1457,7 @@ internal sealed class PatchModule
     {
         var marker = new
         {
-            patchManagerVersion = "0.2.35",
+            patchManagerVersion = "0.2.36",
             module = Id,
             pluginVersion = context.Version,
             patchedAt = DateTimeOffset.Now,
