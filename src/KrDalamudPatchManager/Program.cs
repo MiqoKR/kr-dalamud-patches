@@ -958,7 +958,8 @@ internal sealed class PatchModule
             (source, hook, output) => CustomizePlusPatchCore.Patch(source, hook, output),
             needsUpgrade: CustomizePlusPatchCore.NeedsActorRuntimeUpgrade,
             upgradeInPlace: CustomizePlusPatchCore.UpgradeActorRuntime,
-            legacyMarker: "CustomizePlus.KR.Actor.Patch.json"),
+            legacyMarker: "CustomizePlus.KR.Actor.Patch.json",
+            validateUnsupportedVersion: CustomizePlusPatchCore.ValidatePatchShape),
         new PatchModule(
             "glamourer", "Glamourer KR 호환성", "호환성", "Glamourer", new[] { "1.6.1.7", "1.7.0.1", "1.7.0.2" }, new[] { "Glamourer.dll", "Penumbra.GameData.dll" }, "한국어 캐릭터 조건 · CreateNewModel 호환",
             GlamourerPatchCore.IsPatched,
@@ -1323,7 +1324,7 @@ internal sealed class PatchModule
     {
         var marker = new
         {
-            patchManagerVersion = "0.2.25",
+            patchManagerVersion = "0.2.35",
             module = Id,
             pluginVersion = version,
             patchedAt = DateTimeOffset.Now,
@@ -1443,7 +1444,7 @@ internal sealed class PatchModule
     {
         var marker = new
         {
-            patchManagerVersion = "0.1.0",
+            patchManagerVersion = "0.2.35",
             module = Id,
             pluginVersion = context.Version,
             patchedAt = DateTimeOffset.Now,

@@ -6,7 +6,7 @@
 
 | 분류 | 모듈 | 상태 |
 | --- | --- | --- |
-| 호환성 | Customize+ KR 캐릭터 인식 | 2.2.1.1 단일 이름 · 로비 Actor fallback · Bone Editor 검증 완료 |
+| 호환성 | Customize+ KR 캐릭터 인식 | 2.2.1.3 구조 기반 자동 검증 · 단일 이름 · 로비 Actor fallback · Bone Editor 검증 완료 |
 | 호환성 | Glamourer KR | 1.7.0.2 Actors 복구 격리 검증 완료 |
 | 호환성 | Penumbra KR 개인 할당 | 한국어 캐릭터명 · KR 월드 ID 격리 검증 완료 |
 | 공통 호환성 | Dalamud 공통 UI / AtkResNode | 한섭 7.56 IsVisible 직접 시그니처 주소 자동 계산·캐시 적용·복원 검증 완료 |
@@ -37,7 +37,7 @@ Glamourer `1.7.0.1`은 격리 복사본에서 KR 패치 적용·검증을 통과
 4. `KR.Dalamud.PatchManager.exe`를 실행하고 적용할 모듈을 선택합니다.
 5. `선택 항목 적용` 또는 `선택 항목 복원`을 누릅니다.
 
-매니저는 실제 설치 버전과 IL 패치 상태를 먼저 확인합니다. 이미 다른 도구로 패치돼 있지만 원본 백업이 없는 모듈은 현재 파일을 건드리지 않고 보호 상태로 표시합니다. 원본 플러그인을 재설치한 뒤 Patch Manager로 적용하면 백업·복원 관리가 시작됩니다.
+매니저는 실제 설치 버전과 IL 패치 상태를 먼저 확인합니다. 이미 다른 도구로 패치돼 있지만 원본 백업이 없는 모듈은 현재 파일을 건드리지 않고 보호 상태로 표시합니다. 원본 플러그인을 재설치한 뒤 Patch Manager로 적용하면 백업·복원 관리가 시작됩니다. Customize+는 미등록 새 버전도 격리 복사본에서 전체 패치와 사후 검증을 통과하면 바로 적용할 수 있으며, 필요한 IL 구조가 하나라도 달라지면 실제 파일을 수정하지 않고 중단합니다.
 
 `업데이트 확인`은 GitHub의 최신 Patch Manager 릴리스를 조회합니다. 새 버전을 선택하면 ZIP의 SHA-256을 확인한 뒤 현재 실행 파일을 교체하고 자동으로 다시 시작합니다.
 
@@ -52,9 +52,9 @@ BossModReborn, GatherBuddyReborn, Simple Heels는 `새 버전 검사`를 지원�
 `Customize+ KR 캐릭터 인식`은 한국어 단일 캐릭터명과 한국 서버 월드 ID를 Customize+ 프로필에서 인식하도록 보정합니다. Penumbra KR 개인 할당은 같은 식별자를 Penumbra 컬렉션의 개별 캐릭터 할당에서 사용하도록 보정합니다. Glamourer, Simple Heels, BossModReborn, GatherBuddyReborn도 같은 실행 파일에서 독립 항목으로 처리합니다.
 
 - 원본 플러그인 파일은 포함하거나 재배포하지 않습니다.
-- 정확히 검증된 Customize+ 버전에만 적용합니다.
+- 등록 버전은 원본 SHA-256을 확인하고, 미등록 새 버전은 격리 복사본의 구조·적용 결과를 확인한 뒤에만 적용합니다.
 - 적용 전 원본을 `%APPDATA%\\XIVLauncherKR\\kr-patch-backups`에 보관합니다.
-- 새 플러그인 버전은 해시가 달라 자동으로 거부됩니다. 해당 버전을 따로 검증한 뒤 새 릴리스로 지원합니다.
+- 새 플러그인 버전의 패치 대상 구조가 유지되면 매니저 업데이트 없이 적용할 수 있습니다. 구조가 바뀐 버전은 안전하게 거부되며 패치 로직 업데이트가 필요합니다.
 
 자세한 사용법은 [Customize+ 모듈 안내](patches/compatibility/customizeplus/README.md)를 참고하세요.
 

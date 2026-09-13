@@ -1,6 +1,6 @@
 # Customize+ KR 캐릭터 인식
 
-대상: **Customize+ 2.2.0.3**
+대상: **Patch Manager 구조 자동 검증 대상 및 독립 패처 Customize+ 2.2.0.3**
 
 이 모듈은 프로필의 캐릭터 조건에 한국어 단일 이름과 한국 서비스 월드를 사용할 수 있게 합니다. Customize+ 자체의 외형 데이터나 프로필 파일을 수정하지 않고, 의존 라이브러리의 캐릭터 식별 검증만 보정합니다.
 
@@ -10,7 +10,13 @@
 - Customize+ 2.2.0.3이 정상 설치되어 있어야 합니다.
 - 한 캐릭터에 여러 활성 프로필이 걸려 있으면 Customize+가 충돌 경고를 표시할 수 있습니다. 이는 패치 오류가 아니라 프로필 우선순위 설정 문제입니다.
 
-## 사용
+## Patch Manager 사용
+
+Patch Manager 0.2.35부터는 미등록 Customize+ 새 버전을 먼저 임시 폴더에 복사해 패치 대상 IL 구조를 확인하고, 전체 패치와 사후 검증까지 성공한 경우에만 `적용 가능`으로 표시합니다. 따라서 구조가 유지된 일반 버전 업데이트는 Patch Manager 자체 업데이트 없이 다시 적용할 수 있습니다.
+
+구조가 달라졌거나 일부 패치 지점을 찾지 못하면 실제 플러그인 DLL은 수정하지 않고 자동 적용을 거부합니다. 적용 전 원본은 항상 `%APPDATA%\\XIVLauncherKR\\kr-patch-backups\\CustomizePlus\\<version>\\<timestamp>`에 보관합니다.
+
+## 독립 패처 사용
 
 GitHub Release에서 `CustomizePlus.KR.Actor.Patcher-<version>.zip`을 내려받아 압축을 풀고 실행합니다.
 
@@ -22,10 +28,10 @@ GitHub Release에서 `CustomizePlus.KR.Actor.Patcher-<version>.zip`을 내려받
 
 ## 지원 범위와 안전장치
 
-- 지원 버전: `Customize+ 2.2.0.3`
+- 독립 패처 지원 버전: `Customize+ 2.2.0.3`
 - 원본 `CustomizePlus.dll`, `Penumbra.GameData.dll`의 SHA-256을 모두 확인합니다.
 - 백업 위치: `%APPDATA%\\XIVLauncherKR\\kr-patch-backups\\CustomizePlus\\2.2.0.3\\<timestamp>`
-- 미검증 버전, 이미 다른 방식으로 수정된 파일, 실행 중인 게임/런처 환경에서는 적용하지 않습니다.
+- 독립 패처는 미검증 버전, 이미 다른 방식으로 수정된 파일, 실행 중인 게임/런처 환경에서는 적용하지 않습니다.
 
 ## 개발자 검증
 

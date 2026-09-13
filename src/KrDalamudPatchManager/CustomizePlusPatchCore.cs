@@ -23,7 +23,6 @@ internal static class CustomizePlusPatchCore
     {
         RequireDirectory(sourcePluginDirectory);
         RequireDirectory(hookDirectory);
-        ValidateSupportedOriginal(sourcePluginDirectory);
         CopyDirectory(sourcePluginDirectory, outputDirectory);
 
         var gameDataDll = Path.Combine(outputDirectory, "Penumbra.GameData.dll");
@@ -31,6 +30,27 @@ internal static class CustomizePlusPatchCore
         PatchLoggedInLobbyFallback(gameDataDll, new[] { outputDirectory, sourcePluginDirectory, hookDirectory });
         PatchIncognitoSingleNameFallback(gameDataDll, new[] { outputDirectory, sourcePluginDirectory, hookDirectory });
         Verify(outputDirectory, hookDirectory);
+    }
+
+    // Customize+ often updates its version without changing the Penumbra.GameData
+    // actor-identification code that this patch touches.  For an unknown version,
+    // prove compatibility by applying the complete patch to an isolated copy and
+    // running the same post-patch verification before the real DLL is modified.
+    public static void ValidatePatchShape(string pluginDirectory, string hookDirectory)
+    {
+        var validationDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "KR-Dalamud-PatchManager",
+            "customizeplus-shape-validation",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            Patch(pluginDirectory, hookDirectory, validationDirectory);
+        }
+        finally
+        {
+            TryDeleteDirectory(validationDirectory);
+        }
     }
 
     public static void Verify(string pluginDirectory, string hookDirectory)
@@ -524,7 +544,7 @@ internal static class CustomizePlusPatchCore
     }
 
     private static InvalidOperationException Unsupported(string detail)
-        => new($"지원하지 않는 Customize+ DLL 구조입니다. Customize+ {SupportedVersion} 공식 설치본만 지원합니다.\r\n\r\n{detail}");
+        => new($"지원하지 않는 Customize+ DLL 구조입니다. 안전을 위해 자동 적용을 중단했습니다.\r\n\r\n{detail}");
 
     private static void RequireFile(string path)
     {
@@ -547,6 +567,21 @@ internal static class CustomizePlusPatchCore
         if (File.Exists(path))
         {
             File.Delete(path);
+        }
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, true);
+            }
+        }
+        catch
+        {
+            // Temporary validation cleanup must not hide the actual validation result.
         }
     }
 }
