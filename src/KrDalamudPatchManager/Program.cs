@@ -1077,7 +1077,7 @@ internal sealed class PatchModule
             },
             validateUnsupportedVersion: BossModPatchCore.ValidatePatchShape),
         new PatchModule(
-            "gatherbuddyreborn", "GatherBuddyReborn KR 데이터", "KR 데이터", "GatherBuddyReborn", new[] { "7.5.1.0", "7.5.1.1", "7.5.5.0", "7.5.5.3" }, new[] { "GatherBuddy.GameData.dll", "GatherBuddyReborn.dll" }, "언어 fallback · 낚시 Regex fallback",
+            "gatherbuddyreborn", "GatherBuddyReborn KR 데이터", "KR 데이터", "GatherBuddyReborn", new[] { "7.5.1.0", "7.5.1.1", "7.5.5.0", "7.5.5.3", "7.5.6.0" }, new[] { "GatherBuddy.GameData.dll", "GatherBuddyReborn.dll" }, "언어 fallback · 낚시 Regex fallback",
             GatherBuddyPatchCore.IsPatched,
             (source, hook, output) => GatherBuddyPatchCore.Patch(source, output, hook),
             officialManifestUrl: "https://raw.githubusercontent.com/FFXIV-CombatReborn/CombatRebornRepo/main/pluginmaster.json",
@@ -1098,7 +1098,13 @@ internal sealed class PatchModule
                     ["GatherBuddy.GameData.dll"] = "5D86815E72E3874118C89BCAC447B09EA4D3093AD79F9AFDD687F5E2183476A3",
                     ["GatherBuddyReborn.dll"] = "BBEC37E9FB2835F4FB2EFC0AF5B5DCD1D6379859664EE507804E03D3710051DD",
                 },
-            }),
+                ["7.5.6.0"] = new Dictionary<string, string>
+                {
+                    ["GatherBuddy.GameData.dll"] = "0E1531FA8902271C489CAD968C085418114C1CE7D8C370CF67BBF213BF502E1A",
+                    ["GatherBuddyReborn.dll"] = "9D1D14C7FFC210528E1763F4D2E80AC8D846A63E213258483096D7A903065F79",
+                },
+            },
+            validateUnsupportedVersion: GatherBuddyPatchCore.ValidatePatchShape),
     };
 
     public ModuleStatus GetStatus(string profileRoot)
@@ -1337,7 +1343,7 @@ internal sealed class PatchModule
     {
         var marker = new
         {
-            patchManagerVersion = "0.2.36",
+            patchManagerVersion = "0.2.37",
             module = Id,
             pluginVersion = version,
             patchedAt = DateTimeOffset.Now,
@@ -1457,7 +1463,7 @@ internal sealed class PatchModule
     {
         var marker = new
         {
-            patchManagerVersion = "0.2.36",
+            patchManagerVersion = "0.2.37",
             module = Id,
             pluginVersion = context.Version,
             patchedAt = DateTimeOffset.Now,

@@ -13,7 +13,7 @@
 | 호환성 | HaselTweaks KR UI 호환성 | 50.0.1.0 현재 KR Hook UI 관리자 오프셋 · AddonObserver 안정화 검증 완료 |
 | 호환성 | Simple Heels KR 안정성 | 0.11.1.8 격리 검증 완료 |
 | KR 데이터 | BossModReborn KR | 7.5.5.9 격리 검증 완료 |
-| KR 데이터 | GatherBuddyReborn KR | 7.5.5.3 격리 검증 완료 |
+| KR 데이터 | GatherBuddyReborn KR | 7.5.6.0 격리 검증 완료 · 이후 버전 구조 자동 검증 |
 
 Patch Manager의 `검증 성공 조건` 열은 단순 파일 존재 여부가 아니라, 각 모듈이 실제로 검사한 패치 효과를 표시합니다.
 
@@ -41,7 +41,7 @@ Glamourer `1.7.0.1`은 격리 복사본에서 KR 패치 적용·검증을 통과
 
 `업데이트 확인`은 GitHub의 최신 Patch Manager 릴리스를 조회합니다. 새 버전을 선택하면 ZIP의 SHA-256을 확인한 뒤 현재 실행 파일을 교체하고 자동으로 다시 시작합니다.
 
-BossModReborn, GatherBuddyReborn, Simple Heels는 `새 버전 검사`를 지원합니다. 이 기능은 각 공식 매니페스트의 최신 ZIP을 **임시 폴더에만** 내려받아 기존 패치 로직을 적용·검증하고, 결과·원본 SHA-256·오류를 `%APPDATA%\\XIVLauncherKR\\kr-patch-reports`에 기록합니다. 실제 설치된 플러그인 파일은 검사 과정에서 변경하지 않습니다. 정식판에서는 `BossMod 최신 설치`와 `GatherBuddy 최신 설치` 버튼으로 공식 최신 ZIP을 내려받아 원본 DLL 해시와 KR 패치 결과를 검증한 뒤 백업·설치할 수 있습니다.
+BossModReborn, GatherBuddyReborn, Simple Heels는 `새 버전 검사`를 지원합니다. 이 기능은 각 공식 매니페스트의 최신 ZIP을 **임시 폴더에만** 내려받아 기존 패치 로직을 적용·검증하고, 결과·원본 SHA-256·오류를 `%APPDATA%\\XIVLauncherKR\\kr-patch-reports`에 기록합니다. 실제 설치된 플러그인 파일은 검사 과정에서 변경하지 않습니다. 정식판에서는 `BossMod 최신 설치`와 `GatherBuddy 최신 설치` 버튼으로 공식 최신 ZIP을 내려받아 원본 DLL 해시와 KR 패치 결과를 검증한 뒤 백업·설치할 수 있습니다. GatherBuddyReborn은 미등록 새 버전도 격리 복사본의 전체 패치와 사후 검증이 성공하면 바로 설치할 수 있고, 필요한 구조가 달라지면 실제 설치본을 수정하지 않고 중단합니다.
 
 ## 현재 제공 모듈
 

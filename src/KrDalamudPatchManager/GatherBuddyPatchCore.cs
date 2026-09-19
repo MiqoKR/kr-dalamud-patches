@@ -37,6 +37,23 @@ internal static class GatherBuddyPatchCore
         }
     }
 
+    public static void ValidatePatchShape(string pluginDirectory, string hookDirectory)
+    {
+        var validationDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "KR-Dalamud-PatchManager",
+            "gatherbuddy-shape-validation",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            Patch(pluginDirectory, validationDirectory, hookDirectory);
+        }
+        finally
+        {
+            TryDeleteDirectory(validationDirectory);
+        }
+    }
+
     public static void Verify(string pluginDirectory, string hookDirectory)
     {
         pluginDirectory = Path.GetFullPath(pluginDirectory);
@@ -87,6 +104,21 @@ static void CopyDirectory(string sourceDirectory, string outputDirectory)
 
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
         File.Copy(sourcePath, outputPath, overwrite: true);
+    }
+}
+
+static void TryDeleteDirectory(string path)
+{
+    try
+    {
+        if (Directory.Exists(path))
+        {
+            Directory.Delete(path, recursive: true);
+        }
+    }
+    catch
+    {
+        // Temporary validation cleanup must not hide the validation result.
     }
 }
 
