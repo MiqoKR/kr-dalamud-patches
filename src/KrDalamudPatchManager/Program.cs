@@ -1007,7 +1007,7 @@ internal sealed class PatchModule
             },
             validateUnsupportedVersion: PenumbraPatchCore.ValidatePatchShape),
         new PatchModule(
-            "haseltweaks", "HaselTweaks KR UI 호환성", "호환성", "HaselTweaks", new[] { "49.2.1.0", "49.2.3.0", "49.4.1.0", "49.4.2.0", "50.0.0.0", "50.0.1.0" }, new[] { "FFXIVClientStructs.dll", "HaselCommon.dll" }, "현재 KR Hook UI 관리자 오프셋 · AddonObserver 안정화",
+            "haseltweaks", "HaselTweaks KR UI 호환성", "호환성", "HaselTweaks", new[] { "49.2.1.0", "49.2.3.0", "49.4.1.0", "49.4.2.0", "50.0.0.0", "50.0.1.0", "50.0.4.0" }, new[] { "FFXIVClientStructs.dll", "HaselCommon.dll" }, "현재 KR Hook UI 관리자 오프셋 · AddonObserver 안정화",
             HaselTweaksPatchCore.IsPatched,
             (source, hook, output) => HaselTweaksPatchCore.Patch(source, hook, output),
             officialManifestUrl: "https://raw.githubusercontent.com/Haselnussbomber/MyDalamudPlugins/main/repo.json",
@@ -1042,6 +1042,11 @@ internal sealed class PatchModule
                 {
                     ["FFXIVClientStructs.dll"] = "F6D20570A4608EBD34DE0C8D166F41971CFE95EFC2E6D31729108372A306A520",
                     ["HaselCommon.dll"] = "CB5957BF5C356ED6F38A6A086C16FEC5F67C2BC576E23E910A7369CC30B2FC80",
+                },
+                ["50.0.4.0"] = new Dictionary<string, string>
+                {
+                    ["FFXIVClientStructs.dll"] = "31D30753E8AB567337C8EAD28007BB0C6F27B20AFAB710F75C9AA7EBFAA11EB6",
+                    ["HaselCommon.dll"] = "BD49D3700C31DB4EFF57EF100E25422911E187DC8BE80699DFDB9D7FBE5E88A2",
                 },
             },
             validateUnsupportedVersion: HaselTweaksPatchCore.ValidatePatchShape),
@@ -1343,7 +1348,7 @@ internal sealed class PatchModule
     {
         var marker = new
         {
-            patchManagerVersion = "0.2.37",
+            patchManagerVersion = "0.2.38",
             module = Id,
             pluginVersion = version,
             patchedAt = DateTimeOffset.Now,
@@ -1463,7 +1468,7 @@ internal sealed class PatchModule
     {
         var marker = new
         {
-            patchManagerVersion = "0.2.37",
+            patchManagerVersion = "0.2.38",
             module = Id,
             pluginVersion = context.Version,
             patchedAt = DateTimeOffset.Now,

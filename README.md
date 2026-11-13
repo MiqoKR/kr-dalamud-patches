@@ -10,7 +10,7 @@
 | 호환성 | Glamourer KR | 1.7.0.2 Actors 복구 격리 검증 완료 |
 | 호환성 | Penumbra KR 개인 할당 | 한국어 캐릭터명 · KR 월드 ID 격리 검증 완료 |
 | 공통 호환성 | Dalamud 공통 UI / AtkResNode | 한섭 7.56 IsVisible 직접 시그니처 주소 자동 계산·캐시 적용·복원 검증 완료 |
-| 호환성 | HaselTweaks KR UI 호환성 | 50.0.1.0 현재 KR Hook UI 관리자 오프셋 · AddonObserver 안정화 검증 완료 |
+| 호환성 | HaselTweaks KR UI 호환성 | 50.0.4.0 현재 KR Hook UI 관리자 오프셋 · AddonObserver 안정화 검증 완료 |
 | 호환성 | Simple Heels KR 안정성 | 0.11.1.8 격리 검증 완료 |
 | KR 데이터 | BossModReborn KR | 7.5.5.9 격리 검증 완료 |
 | KR 데이터 | GatherBuddyReborn KR | 7.5.6.0 격리 검증 완료 · 이후 버전 구조 자동 검증 |
